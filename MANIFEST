@@ -1,0 +1,11 @@
+bin/google-calendar
+Build.PL
+lib/Net/Google/Calendar.pm
+lib/Net/Google/Calendar/Entry.pm
+lib/Net/Google/Calendar/Person.pm
+MANIFEST			This list of files
+t/01use.t
+TODO
+USAGE
+META.yml
+Makefile.PL

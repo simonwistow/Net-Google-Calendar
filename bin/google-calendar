@@ -1,0 +1,53 @@
+#!perl -w
+
+use strict;
+use Data::Dumper;
+use Net::Google::Calendar;
+my $url = shift || die "You must pass a feed url\n";
+
+my $cal = Net::Google::Calendar->new( url => $url );
+
+my $u = shift;
+my $p = shift;
+
+$cal->login($u, $p);
+
+
+if (!@ARGV) {
+    for ($cal->get_events()) {
+		print $_->title."\n";
+		print $_->content->body."\n*****\n\n";
+	}
+    exit;
+} 
+
+
+my $title = shift;
+
+
+my $entry = Net::Google::Calendar::Entry->new();
+$entry->title($title);
+$entry->content("My content");
+$entry->location('London, England');
+#$entry->transparency('transparent');
+#$entry->status('confirmed');
+$entry->when(DateTime->now, DateTime->now() + DateTime::Duration->new( hours => 6 ) );
+
+my $author = Net::Google::Calendar::Person->new( Version => '1.0' );
+$author->name('Foo Bar');
+$author->email('foo@bar.com');
+$entry->author($author);
+
+my $tmp = $cal->add_entry($entry);
+die "Couldn't add event: $@\n" unless defined $tmp;
+
+print "Events=".scalar($cal->get_events())."\n";
+
+$tmp->content('Updated');
+
+print "Update\n";
+$cal->update_entry($tmp) || die "Couldn't update ".$tmp->id.": $@\n";
+
+print "Delete\n";
+$cal->delete_entry($tmp) || die "Couldn't delete ".$tmp->id.": $@\n";
+	
