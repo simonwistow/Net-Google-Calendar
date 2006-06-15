@@ -1,5 +1,7 @@
 bin/google-calendar
 Build.PL
+Changes
+Readme
 lib/Net/Google/Calendar.pm
 lib/Net/Google/Calendar/Entry.pm
 lib/Net/Google/Calendar/Person.pm

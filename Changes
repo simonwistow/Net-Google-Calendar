@@ -1,0 +1,7 @@
+v0.2 Thu Jun 15 10:38:52 BST 2006
+	Support for querying entries
+    Support for recurring events (thanks to Google *finally* fixing their service)
+
+v0.1 Wed Apr 09:35:14 BST 2006 
+	Initial release 
+	Support for listing entries then adding, deleting or updating them

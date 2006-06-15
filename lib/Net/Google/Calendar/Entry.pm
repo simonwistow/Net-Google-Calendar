@@ -9,6 +9,7 @@ use XML::Atom::Util qw( set_ns first nodelist iso2dt);
 use base qw(XML::Atom::Entry);
 
 
+
 =head1 NAME
 
 Net::Google::Calendar::Entry - entry class for Net::Google::Calendar
@@ -230,6 +231,81 @@ sub edit_url {
     return $edit->href;
 }
 
+
+=head2 recurrence [ Data::ICal::Entry::Event ]
+
+Get or set a recurrence for an entry - this is in the form of a Data::ICal::Entry::Event object. 
+
+Returns undef if there's no recurrence event
+
+This will not work if C<Data::ICal> is not installed and will return undef.
+
+For example ...
+
+    $event->title('Pay Day');
+    $event->start(DateTime->now);
+
+    my $recurrence = Data::ICal::Entry::Event->new();
+
+
+    my $last_day_of_the_month = DateTime::Event::Recurrence->monthly( days => -1 );
+    $recurrence->add_properties(
+               dtstart   => DateTime::Format::ICal->format_datetime(DateTime->now),
+               rrule     => DateTime::Format::ICal->format_recurrence($last_day_of_the_month),
+    );
+
+    $entry->recurrence($recurrence);
+
+To get the recurrence back:
+
+    print $entry->recurrence->a_string;
+
+See 
+
+    http://code.google.com/apis/gdata/common-elements.html#gdRecurrence
+
+For more details
+
+=cut
+
+sub recurrence {
+    my $self = shift;
+    
+    # we need Data::ICal for this but we don't wnat to require it
+    eval {
+        require Data::ICal;
+        Data::ICal->import;    
+    };
+    if ($@) {
+        $@ = "Couldn't load Data::ICal";
+        return;
+    }
+
+    # this is all one massive hack. 
+    # I hate myself for writing this.
+    if (@_) {
+        my $event  = shift;
+        # pesky Google Calendar needs you to remove the BEGIN:VEVENT END:VEVENT. TSSSK
+        my $recur =  $event->as_string;
+
+        $recur =~ s!(^BEGIN:VEVENT\n|END:VEVENT\n$)!!sg; 
+        $self->set($self->{_gd_ns}, 'gd:recurrence', $recur);
+
+        return $event;
+    }
+    my $string = $self->get($self->{_gd_ns}, 'recurrence');
+    return undef unless defined $string;
+    $string =~ s!\n+$!!g;
+    $string = "BEGIN:VEVENT\n${string}\nEND:VEVENT";
+    my $vfile = Text::vFile::asData->parse_lines( split(/\n/, $string) );
+    my $event = Data::ICal::Entry::Event->new();
+
+
+    $event->parse_object($vfile->{objects}->[0]);
+    return $event->{entries}->[0];
+  
+
+}
 
 
 =head1 TODO

@@ -1,6 +1,6 @@
 ---
 name: Net-Google-Calendar
-version: 0.1_devel
+version: 0.2_devel
 author:
   - Simon Wistow <simon@thegestalt.org>
 abstract: programmatic access to Google's Calendar API
@@ -9,11 +9,12 @@ requires:
   DateTime: 0
   LWP::UserAgent: 0
   Test::More: 0
+  URI: 0
   XML::Atom: 0
 provides:
   Net::Google::Calendar:
     file: lib/Net/Google/Calendar.pm
-    version: 0.1_devel
+    version: 0.2_devel
   Net::Google::Calendar::Entry:
     file: lib/Net/Google/Calendar/Entry.pm
   Net::Google::Calendar::Person:

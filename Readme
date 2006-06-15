@@ -1,0 +1,8 @@
+The usual spiel
+
+	% perl Build.PL
+	% ./Build 
+	% ./Build test
+	% sudo ./Build install
+
+

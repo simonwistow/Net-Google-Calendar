@@ -8,10 +8,11 @@ use XML::Atom::Entry;
 use Data::Dumper;
 use Net::Google::Calendar::Entry;
 use Net::Google::Calendar::Person;
+use URI;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.1_devel";
+$VERSION  = "0.2_devel";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -39,7 +40,7 @@ Net::Google::Calendar - programmatic access to Google's Calendar API
     $entry->when(DateTime->now, DateTime->now() + DateTime::Duration->new( hours => 6 ) );
 
 
-    my $author = Net::Google::Calendar::Person->new( Version => '1.0' );
+    my $author = Net::Google::Calendar::Person->new();
     $author->name('Foo Bar');
     $author->email('foo@bar.com');
     $entry->author($author);
@@ -106,15 +107,188 @@ sub login {
     return 1;
 }
 
-=head2 get_events
+=head2 get_events [ %opts ]
 
 Return a list of Net::Google::Calendar::Entry objects;
+
+You can pass in a hash of options which map to the Google Data API's generic 
+searching mechanisms plus the specific calendar ones.
+
+See
+
+    http://code.google.com/apis/gdata/protocol.html#query-requests
+
+for more details.
+
+
+=over 4
+
+=item q
+
+Full-text query string
+
+When creating a query, list search terms separated by spaces, in the
+form q=term1 term2 term3. (As with all of the query parameter values,
+the spaces must be URL encoded.) The GData service returns all entries
+that match all of the search terms (like using AND between terms). Like
+Google's web search, a GData service searches on complete words (and
+related words with the same stem), not substrings.
+
+To search for an exact phrase, enclose the phrase in quotation marks: 
+
+    q => '"exact phrase'
+
+To exclude entries that match a given term, use the form 
+
+    q => '-term'
+
+The search is case-insensitive.
+
+Example: to search for all entries that contain the exact phrase
+'Elizabeth Bennet' and the word 'Darcy' but don't contain the word
+'Austen', use the following query: 
+
+    q => '"Elizabeth Bennet" Darcy -Austen'
+
+
+=item category
+
+Category filter
+
+To search in just one category do
+
+    category => 'Fritz'    
+
+You can query on multiple categories by listing multiple category parameters. For example
+
+    category => [ 'Fritz', 'Laurie' ]
+
+returns entries that match both categories.
+
+
+To do an OR between terms, use a pipe character (|). For example
+
+
+    category => 'Fritz|Laurie'
+
+returns entries that match either category.
+
+To exclude entries that match a given category, use the form 
+
+    category => '-categoryname'
+
+You can, of course, mix and match
+
+    [ 'Jo', 'Fritz|Laurie', '-Simon' ]
+
+means in category 
+
+    (Jo AND ( Fritz OR Laurie ) AND (NOT Simon)) 
+
+
+=item author
+
+Entry author
+
+The service returns entries where the author name and/or email address 
+match your query string.
+
+=item updated-min
+
+=item updated-max
+
+Bounds on the entry publication date.
+
+Use DateTime objects or the RFC 3339 timestamp format. For example:
+2005-08-09T10:57:00-08:00.
+
+The lower bound is inclusive, whereas the upper bound is exclusive.
+
+=item start-min
+
+=item start-max
+
+Respectively, the earliest event start time to match (If not specified, 
+default is 1970-01-01) and the latest event start time to match (If 
+not specified, default is 2031-01-01).
+
+Use DateTime objects or the RFC 3339 timestamp format. For example:
+2005-08-09T10:57:00-08:00.
+
+The lower bound is inclusive, whereas the upper bound is exclusive.
+
+=item start-index
+
+1-based index of the first result to be retrieved
+
+Note that this isn't a general cursoring mechanism. If you first send a 
+query with 
+
+    start-index => 1,
+    max-results => 10 
+
+and then send another query with
+
+    start-index => 11,
+    max-results => 10
+
+the service cannot guarantee that the results are equivalent to
+    
+    start-index => 1
+    max-results => 20
+
+because insertions and deletions could have taken place in between the
+two queries.
+
+=item max-results
+
+Maximum number of results to be retrieved.
+
+For any service that has a default max-results value (to limit default 
+feed size), you can specify a very large number if you want to receive 
+the entire feed.
+
+=item entryID
+
+ID of a specific entry to be retrieved.
+
+If you specify an entry ID, you can't specify any other parameters.
+
+=back
 
 =cut
 
 sub get_events {
     my ($self, %opts) = @_;
-    my $r = $self->{_ua}->get($self->{url}, Authorization => "GoogleLogin auth=".$self->{_auth});
+
+
+    # check for DateTime objects and convert them to RFC 3339 
+    for (keys %opts) {
+        next unless UNIVERSAL::isa($opts{$_}, 'DateTime');
+        # maybe we should chuck an error if it's a Ref and *not* a DateTime
+        #next unless $opts{$_}->isa('DateTime');
+        $opts{$_} = $opts{$_}->iso8601 . 'Z';
+    }
+
+    my $url = URI->new($self->{url});
+
+    if (exists $opts{entryID}) {
+        if (scalar(keys %opts)>1) {
+            $@ = "You can't specify entryID and anything else";
+            return undef;    
+        }
+        my $path = $url->path;
+        $url->path("$path/".$opts{entryID});
+    }
+
+    if (exists $opts{category} && 'ARRAY' eq ref($opts{category})) {
+        my $path = $url->path."/".join("/", ( '-', @{delete $opts{category}}));
+        $url->path("$path");
+    }
+
+    $url->query_form(\%opts);
+
+    my $r   = $self->{_ua}->get("$url", Authorization => "GoogleLogin auth=".$self->{_auth});
     die $r->status_line unless $r->is_success;
     my $atom = $r->content;
 
@@ -168,12 +342,9 @@ sub _do {
     my ($self, $entry, $url, $method) = @_;
 
     if (defined $self->{_session_id} && !$self->{_force_no_session_id}) {
-        if ($url =~ m!\?!) {
-            $url .= "&";
-        } else {
-            $url .= "?";
-        }
-        $url .= "gsessionid=".$self->{_session_id};
+        my $tmp = URI->new($url);
+        $tmp->query_form({ gsessionid => $self->{_session_id} });
+        $url = "$tmp";
     }
 
     my %params = ( Content_Type => 'application/atom+xml',
