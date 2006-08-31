@@ -45,10 +45,17 @@ sub new {
     my ($class, %opts) = @_;
 
     my $self  = $class->SUPER::new( Version => '1.0', %opts );
-    $self->category('', { scheme => 'http://schemas.google.com/g/2005#kind', term => 'http://schemas.google.com/g/2005#event' } );
-
-    $self->{_gd_ns} = XML::Atom::Namespace->new(gd => 'http://schemas.google.com/g/2005');
+    $self->_initialize();
     return $self;
+}
+
+sub _initialize                                                                                   
+{                                                                                                 
+    my $self = shift;                                                                               
+                                                                                                  
+    $self->category('', { scheme => 'http://schemas.google.com/g/2005#kind', term => 'http://schemas.google.com/g/2005#event' } );
+                                                                                                  
+    $self->{_gd_ns} = XML::Atom::Namespace->new(gd => 'http://schemas.google.com/g/2005');          
 }
 
 =head2 id [id]
@@ -202,9 +209,12 @@ sub when {
             $@ = "End is not less than start";
             return undef;
         }
+		$start->set_time_zone('UTC');
+		$end->set_time_zone('UTC');
+
         $self->set($self->{_gd_ns}, "gd:when",  '', { 
-            startTime => $start->iso8601 . 'Z',
-            endTime   => $end->iso8601 . 'Z',
+            startTime => $start->strftime("%FT%TZ"),
+            endTime   => $end->strftime("%FT%TZ"),
         });        
     }
     my $start = $self->_my_get($self->{_gd_ns}, 'when', 'startTime');

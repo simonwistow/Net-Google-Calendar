@@ -12,7 +12,7 @@ use URI;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.2_devel";
+$VERSION  = "0.3";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -293,7 +293,7 @@ sub get_events {
     my $atom = $r->content;
 
     my $feed = XML::Atom::Feed->new(\$atom);
-    return map {  bless $_, 'Net::Google::Calendar::Entry' } $feed->entries;
+    return map {  bless $_, 'Net::Google::Calendar::Entry'; $_->_initialize(); $_ } $feed->entries;
 }
 
 
@@ -306,7 +306,7 @@ Create a new entry.
 sub add_entry {
     my ($self, $entry) = @_;
 
-    my $url = 'http://www.google.com/calendar/feeds/default/private/full'; 
+    my $url =  $self->{ 'url' } || 'http://www.google.com/calendar/feeds/default/private/full'; 
     return $self->_do($entry, $url, 'POST');
 
 }
@@ -347,7 +347,7 @@ sub _do {
         $url = "$tmp";
     }
 
-    my %params = ( Content_Type => 'application/atom+xml',
+    my %params = ( Content_Type => 'application/atom+xml; charset=UTF-8',
                    Authorization => "GoogleLogin auth=".$self->{_auth},
                    Content => $entry->as_xml );
 

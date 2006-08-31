@@ -1,3 +1,9 @@
+v0.3 Thu 31 Aug 2006 21:01:29 BST
+   Timezone support  (HarleyPig)
+   Other calendar support Â((HarleyPig)
+   UTF8 posting support (Yi-Hsuan Hsin)
+   Fix bug with namespacing support in Entry recasting (Yi-Hsuan Hsin)
+
 v0.2 Thu Jun 15 10:38:52 BST 2006
 	Support for querying entries
     Support for recurring events (thanks to Google *finally* fixing their service)

@@ -1,10 +1,12 @@
 ---
 name: Net-Google-Calendar
-version: 0.2_devel
+version: 0.3
 author:
-  - Simon Wistow <simon@thegestalt.org>
+  - 'Simon Wistow <simon@thegestalt.org>'
 abstract: programmatic access to Google's Calendar API
 license: perl
+resources:
+  license: http://dev.perl.org/licenses/
 requires:
   DateTime: 0
   LWP::UserAgent: 0
@@ -14,9 +16,12 @@ requires:
 provides:
   Net::Google::Calendar:
     file: lib/Net/Google/Calendar.pm
-    version: 0.2_devel
+    version: 0.3
   Net::Google::Calendar::Entry:
     file: lib/Net/Google/Calendar/Entry.pm
   Net::Google::Calendar::Person:
     file: lib/Net/Google/Calendar/Person.pm
-generated_by: Module::Build version 0.2611
+generated_by: Module::Build version 0.2801
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.2.html
+  version: 1.2
