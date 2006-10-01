@@ -12,7 +12,7 @@ use URI;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.3";
+$VERSION  = "0.4";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -306,7 +306,8 @@ Create a new entry.
 sub add_entry {
     my ($self, $entry) = @_;
 
-    my $url =  $self->{ 'url' } || 'http://www.google.com/calendar/feeds/default/private/full'; 
+    # my $url =  $self->{ 'url' } || 'http://www.google.com/calendar/feeds/default/private/full'; 
+    my $url =  'http://www.google.com/calendar/feeds/default/private/full'; 
     return $self->_do($entry, $url, 'POST');
 
 }
@@ -347,9 +348,11 @@ sub _do {
         $url = "$tmp";
     }
 
+    my $xml = $entry->as_xml;
+    _utf8_off($xml);
     my %params = ( Content_Type => 'application/atom+xml; charset=UTF-8',
                    Authorization => "GoogleLogin auth=".$self->{_auth},
-                   Content => $entry->as_xml );
+                   Content => $xml );
 
     $params{'X-HTTP-Method-Override'} = $method unless "POST" eq $method;
     
@@ -360,12 +363,13 @@ sub _do {
 
         if (302 == $r->code) {
             $url = $r->header('location');
-            ($self->{_session_id}) = $url =~ m![?&]gsessionid=(.+)$!;
+            my %args = URI->new($url)->query_form;
+            $self->{_session_id} = $args{gsessionid};
             next;
         }
 
         if (!$r->is_success) {
-            $@ = $r->status_line;
+            $@ = $r->status_line." - ".$r->content;
             return undef;
         }
         my $c = $r->content;
@@ -380,6 +384,12 @@ sub _do {
 
 }
 
+sub _utf8_off {
+    if ($] >= 5.008) {
+        require Encode;
+        return Encode::_utf8_off($_[0]);
+    }
+}
 
 =head1 WARNING
 
@@ -390,6 +400,13 @@ Don't use it. Ever. Or something.
 =head1 TODO
 
 Abstract this out to Net::Google::Data
+
+=head1 LATEST VERSION
+
+The latest version can always be obtained from my 
+Subversion repository.
+
+    http://unixbeard.net/svn/simon/Net-Google-Calendar
 
 =head1 AUTHOR
 

@@ -9,7 +9,7 @@ WriteMakefile
                            'LWP::UserAgent' => '0',
                            'Test::More' => '0',
                            'URI' => '0',
-                           'XML::Atom' => '0'
+                           'XML::Atom' => '0.23'
                          },
           'INSTALLDIRS' => 'site',
           'EXE_FILES' => [],

@@ -53,7 +53,7 @@ sub _initialize
 {                                                                                                 
     my $self = shift;                                                                               
                                                                                                   
-    $self->category('', { scheme => 'http://schemas.google.com/g/2005#kind', term => 'http://schemas.google.com/g/2005#event' } );
+    $self->category({ scheme => 'http://schemas.google.com/g/2005#kind', term => 'http://schemas.google.com/g/2005#event' } );
                                                                                                   
     $self->{_gd_ns} = XML::Atom::Namespace->new(gd => 'http://schemas.google.com/g/2005');          
 }
@@ -168,27 +168,24 @@ sub location {
     return $self->_my_get($self->{_gd_ns}, 'where', 'valueString');
 }
 
-# work round get in XML::Atom::Thing
+# work round get in XML::Atom::Thing which stringifies stuff
 sub _my_get {
-   my $atom = shift;
-   my($ns, $name, $attr) = @_;
-   my $ns_uri = ref($ns) eq 'XML::Atom::Namespace' ? $ns->{uri} : $ns;
-   my $node = first($atom->{doc}, $ns_uri, $name);
-   return $node unless defined $node && defined $attr;
-   my $val;
-   if ($attr eq 'content') {
-      $val = LIBXML ? $node->textContent : $node->string_value;
-   } else {
-      # both LibXML and XPath element nodes have the same syntax
-      $val = $node->getAttribute($attr); 
-   }
-   if ($] >= 5.008) {
-        require Encode;
-        Encode::_utf8_off($val);
-   }
-   $val;
-
+    my $obj = shift;
+    my($ns, $name) = @_;
+    my @list = $obj->_my_getlist($ns, $name);
+    return $list[0];
 }
+
+sub _my_getlist {
+    my $obj = shift;
+    my($ns, $name) = @_;
+    my $ns_uri = ref($ns) eq 'XML::Atom::Namespace' ? $ns->{uri} : $ns;
+    my @node = nodelist($obj->elem, $ns_uri, $name);
+    return @node;
+}
+
+
+
 
 =head2 when [<start> <end>]
 
@@ -209,8 +206,8 @@ sub when {
             $@ = "End is not less than start";
             return undef;
         }
-		$start->set_time_zone('UTC');
-		$end->set_time_zone('UTC');
+        $start->set_time_zone('UTC');
+        $end->set_time_zone('UTC');
 
         $self->set($self->{_gd_ns}, "gd:when",  '', { 
             startTime => $start->strftime("%FT%TZ"),
