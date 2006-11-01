@@ -1,3 +1,9 @@
+v0.5 
+   Make when() work properly again, not sure what happened there
+   Enable posting to non-default calendars
+   Enable listing of all Calendars
+   Allow reading of Calendar without logging in (aslong as you have the magic cookie)
+
 v0.4
    Fix for changes in XML::Atom
    Fix for UTF8 receiving (Gosuke Miyashita)

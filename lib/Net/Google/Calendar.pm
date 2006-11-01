@@ -9,10 +9,11 @@ use Data::Dumper;
 use Net::Google::Calendar::Entry;
 use Net::Google::Calendar::Person;
 use URI;
+use URI::Escape;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.4";
+$VERSION  = "0.5";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -81,6 +82,7 @@ for how to get that.
 sub new {
     my ($class, %opts) = @_;
     $opts{_ua} = LWP::UserAgent->new;    
+    ($opts{calendar_id}) = ($opts{url} =~ m!/feeds/([^/]+)/!);
 
     return bless \%opts, $class;
 
@@ -100,6 +102,10 @@ sub login {
     unless ($r->is_success) { $@ = $r->status_line; return undef; }
     my $c = $r->content;
     my ($auth) = $c =~ m!Auth=(.+)(\s+|$)!; 
+    unless (defined $auth) {
+        $@ = "Couldn't extract auth token from '$c'";
+        return undef; 
+    }
     # store auth token
     $self->{_auth} = $auth;
     $self->{user}  = $user;
@@ -288,13 +294,52 @@ sub get_events {
 
     $url->query_form(\%opts);
 
-    my $r   = $self->{_ua}->get("$url", Authorization => "GoogleLogin auth=".$self->{_auth});
+    my %params;
+    %params = ( Authorization => "GoogleLogin auth=".$self->{_auth} ) if (defined $self->{_auth});
+    my $r   = $self->{_ua}->get("$url", %params);
     die $r->status_line unless $r->is_success;
     my $atom = $r->content;
 
     my $feed = XML::Atom::Feed->new(\$atom);
     return map {  bless $_, 'Net::Google::Calendar::Entry'; $_->_initialize(); $_ } $feed->entries;
 }
+
+
+=head2 get_calendars
+
+Get a list of user's Calendars as Net::Google::Calendar::Entry objects.
+
+=cut
+
+sub get_calendars {
+    my $self = shift;
+    my $url = URI->new("http://www.google.com/calendar/feeds/".$self->{user});
+
+    my %params;
+    %params = ( Authorization => "GoogleLogin auth=".$self->{_auth} ) if (defined $self->{_auth});
+    my $r   = $self->{_ua}->get("$url", %params);
+    die $r->status_line unless $r->is_success;
+    my $atom = $r->content;
+
+    my $feed = XML::Atom::Feed->new(\$atom);
+    # TODO maybe these should be Net::Google::Calendar::Entry::Calendar objects or something
+    return map {  bless $_, 'Net::Google::Calendar::Entry'; $_->_initialize(); $_ } $feed->entries;
+}
+
+=head2 set_calendar <Net::Google::Calendar::Entry>
+
+Set the current calendar to use.
+
+=cut
+
+sub set_calendar {
+    my $self = shift;
+    my $cal  = shift;
+
+    ($self->{calendar_id}) = (uri_unescape($cal->id) =~ m!([^/]+)$!);
+    $self->{url} =  "http://www.google.com/calendar/feeds/$self->{calendar_id}/private/full";
+}
+
 
 
 =head2 add_entry <Net::Google::Calendar::Entry>
@@ -306,8 +351,8 @@ Create a new entry.
 sub add_entry {
     my ($self, $entry) = @_;
 
-    # my $url =  $self->{ 'url' } || 'http://www.google.com/calendar/feeds/default/private/full'; 
-    my $url =  'http://www.google.com/calendar/feeds/default/private/full'; 
+    # TODO for neatness' sake we could make calendar_id = 'default' when calendar_id = user
+    my $url =  "http://www.google.com/calendar/feeds/$self->{calendar_id}/private/full"; 
     return $self->_do($entry, $url, 'POST');
 
 }
@@ -341,6 +386,11 @@ sub update_entry {
 
 sub _do {
     my ($self, $entry, $url, $method) = @_;
+
+    unless (defined $self->{_auth}) {
+        $@ = "You must log in to do a $method\n";
+        return undef;
+    }
 
     if (defined $self->{_session_id} && !$self->{_force_no_session_id}) {
         my $tmp = URI->new($url);

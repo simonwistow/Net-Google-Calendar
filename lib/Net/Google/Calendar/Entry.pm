@@ -216,7 +216,24 @@ sub when {
     }
     my $start = $self->_my_get($self->{_gd_ns}, 'when', 'startTime');
     my $end   = $self->_my_get($self->{_gd_ns}, 'when', 'endTime');
-    return (iso2dt($start), iso2dt($end));
+    my @rets;
+    if (defined $start) {
+        if ($start->hasAttribute('startTime')) {
+            push @rets, $start->getAttribute('startTime');
+        } else {
+            push @rets, $start;
+        }
+    } else {
+        die "No start date ".$self->as_xml;
+    }
+    if (defined $end) {
+        if ($start->hasAttribute('endTime')) {
+            push @rets, $start->getAttribute('endTime');
+        } else {
+            push @rets, $end;
+        }
+    } 
+    return map { iso2dt($_) } @rets;
 
 }
 

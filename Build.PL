@@ -11,6 +11,7 @@ my $build = Module::Build
                           'Test::More'        => 0,
                           'DateTime'          => 0,
                           'URI'               => 0,
+                          'URI::Escape'       => 0,
                         },
          recommended  => {
                           'Data::ICal'        => '0.07',
