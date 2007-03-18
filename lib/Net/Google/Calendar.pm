@@ -13,7 +13,7 @@ use URI::Escape;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.5";
+$VERSION  = "0.6";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -89,16 +89,51 @@ sub new {
 }
 
 
-=head2 login <username> <password>
+=head2 login <username> <password> [opt[s]]
 
 Login to google.
+
+Can optionally take a hash of options which will override the 
+default login params. 
+
+=over 4
+
+=item service
+
+Name of the Google service for which authorization is requested.
+
+Defaults to 'cl' for calendar.
+
+=item source
+
+Short string identifying your application, for logging purposes.
+
+Defaults to 'Net::Google::Calendar-<VERSION>'
+
+=item accountType
+
+Type of account to be authenticated.
+
+Defaults to 'HOSTED_OR_GOOGLE'.
+
+=back
+
+See http://code.google.com/apis/accounts/AuthForInstalledApps.html#ClientLogin for more details.
 
 =cut
 
 sub login {
-    my ($self, $user, $pass) = @_;
-    # send auth request
-    my $r = $self->{_ua}->request(POST 'https://www.google.com/accounts/ClientLogin', [ Email => $user, Passwd => $pass, service => 'cl', source => $APP_NAME ]);
+    my ($self, $user, $pass, %opts) = @_;
+    # setup auth request
+    my %params = ( Email       => $user, 
+                   Passwd      => $pass, 
+                   service     => 'cl', 
+                   source      => $APP_NAME,
+                   accountType => 'HOSTED_OR_GOOGLE' );
+    # allow overrides
+    $params{$_} = $opts{$_} for (keys %opts);
+
+    my $r = $self->{_ua}->request(POST 'https://www.google.com/accounts/ClientLogin', [ %params ]);
     unless ($r->is_success) { $@ = $r->status_line; return undef; }
     my $c = $r->content;
     my ($auth) = $c =~ m!Auth=(.+)(\s+|$)!; 
@@ -107,10 +142,26 @@ sub login {
         return undef; 
     }
     # store auth token
-    $self->{_auth} = $auth;
-    $self->{user}  = $user;
-    $self->{pass}  = $pass; 
+    $self->{_auth}      = $auth;
+    $self->{_auth_type} = 0;
+    $self->{user}       = $user;
+    $self->{pass}       = $pass; 
     return 1;
+}
+
+
+=head2 auth <username> <token>
+
+Use the AuthSub method for calendar access.
+See http://code.google.com/apis/accounts/AuthForWebApps.html.
+
+=cut
+
+sub auth {
+    my ($self, $username, $token) = @_;
+    $self->{_auth}      = $token;
+    $self->{user}       = $username;
+    $self->{_auth_type} = 1;
 }
 
 =head2 get_events [ %opts ]
@@ -294,8 +345,7 @@ sub get_events {
 
     $url->query_form(\%opts);
 
-    my %params;
-    %params = ( Authorization => "GoogleLogin auth=".$self->{_auth} ) if (defined $self->{_auth});
+    my %params = $self->_auth_params;
     my $r   = $self->{_ua}->get("$url", %params);
     die $r->status_line unless $r->is_success;
     my $atom = $r->content;
@@ -315,8 +365,7 @@ sub get_calendars {
     my $self = shift;
     my $url = URI->new("http://www.google.com/calendar/feeds/".$self->{user});
 
-    my %params;
-    %params = ( Authorization => "GoogleLogin auth=".$self->{_auth} ) if (defined $self->{_auth});
+    my %params = $self->_auth_params;
     my $r   = $self->{_ua}->get("$url", %params);
     die $r->status_line unless $r->is_success;
     my $atom = $r->content;
@@ -324,6 +373,19 @@ sub get_calendars {
     my $feed = XML::Atom::Feed->new(\$atom);
     # TODO maybe these should be Net::Google::Calendar::Entry::Calendar objects or something
     return map {  bless $_, 'Net::Google::Calendar::Entry'; $_->_initialize(); $_ } $feed->entries;
+}
+
+sub _auth_params {
+    my $self = shift;
+    return () unless defined $self->{_auth};
+    return ( Authorization => $self->_auth_string );
+
+}
+my @AUTH_TYPES = ("GoogleLogin auth", "AuthSub token");
+
+sub _auth_string {
+    my $self   = shift;
+    return $AUTH_TYPES[$self->{_auth_type}]."=".$self->{_auth};
 }
 
 =head2 set_calendar <Net::Google::Calendar::Entry>
@@ -400,10 +462,9 @@ sub _do {
 
     my $xml = $entry->as_xml;
     _utf8_off($xml);
-    my %params = ( Content_Type => 'application/atom+xml; charset=UTF-8',
-                   Authorization => "GoogleLogin auth=".$self->{_auth},
-                   Content => $xml );
-
+    my %params = $self->_auth_params;
+    $params{Content_Type}             = 'application/atom+xml; charset=UTF-8';
+    $params{Content}                  = $xml;
     $params{'X-HTTP-Method-Override'} = $method unless "POST" eq $method;
     
 
@@ -456,7 +517,7 @@ Abstract this out to Net::Google::Data
 The latest version can always be obtained from my 
 Subversion repository.
 
-    http://unixbeard.net/svn/simon/Net-Google-Calendar
+    http://svn.unixbeard.net/simon/Net-Google-Calendar
 
 =head1 AUTHOR
 

@@ -22,7 +22,7 @@ my $p = shift;
 
 $cal->login($u, $p) || die "Couldn't log in: $@\n";
 
-if (0 && !@ARGV) {
+if (@ARGV && $ARGV[0] eq 'list') {
 	for ($cal->get_calendars) {
 		print $_->title."\n";
 		print $_->id."\n\n";
@@ -30,9 +30,9 @@ if (0 && !@ARGV) {
 	exit;
 }
 
-my ($c) = grep { $_->title =~ m!default!i } $cal->get_calendars;
-die "Couldn't get cal\n" unless defined $c;
-$cal->set_calendar($c);
+#my ($c) = grep { $_->title =~ m!default!i } $cal->get_calendars;
+#die "Couldn't get cal\n" unless defined $c;
+#$cal->set_calendar($c);
 
 if (!@ARGV) {
 	print "Getting events\n";
@@ -114,6 +114,6 @@ print "Updated=".scalar($cal->get_events())."\n";
    }
 
 print "Delete\n";
-#$cal->delete_entry($tmp) || die "Couldn't delete ".$tmp->id.": $@\n";
-#print "Delete=".scalar($cal->get_events())."\n";
+$cal->delete_entry($tmp) || die "Couldn't delete ".$tmp->id.": $@\n";
+print "Delete=".scalar($cal->get_events())."\n";
 

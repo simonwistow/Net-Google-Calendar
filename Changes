@@ -1,8 +1,13 @@
+v0.6
+   Allow Authorization token login (advice from various people)
+   Use the HOSTED_OR_GOOGLE app type by default (ditto)
+      
+
 v0.5 
    Make when() work properly again, not sure what happened there
    Enable posting to non-default calendars
    Enable listing of all Calendars
-   Allow reading of Calendar without logging in (aslong as you have the magic cookie)
+   Allow reading of Calendar without logging in (as long as you have the magic cookie)
 
 v0.4
    Fix for changes in XML::Atom
