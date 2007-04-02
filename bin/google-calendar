@@ -15,7 +15,8 @@ use Date::ICal;
 
 my $url = shift || die "You must pass a feed url\n";
 
-my $cal = Net::Google::Calendar->new( url => $url );
+#my $cal = Net::Google::Calendar->new( url => $url );
+my $cal = Net::Google::Calendar->new();
 
 my $u = shift;
 my $p = shift;
@@ -30,9 +31,9 @@ if (@ARGV && $ARGV[0] eq 'list') {
 	exit;
 }
 
-#my ($c) = grep { $_->title =~ m!default!i } $cal->get_calendars;
-#die "Couldn't get cal\n" unless defined $c;
-#$cal->set_calendar($c);
+my ($c) = grep { $_->title =~ m!default!i } $cal->get_calendars;
+die "Couldn't get cal\n" unless defined $c;
+$cal->set_calendar($c);
 
 if (!@ARGV) {
 	print "Getting events\n";
@@ -80,40 +81,41 @@ $recurrence->add_properties(
 
 #$entry->recurrence($recurrence);
 
-print STDERR $entry->as_xml."\n\n\n*********************\n\n";
+#print STDERR $entry->as_xml."\n\n\n*********************\n\n";
 #exit;
 
 print "Before=".scalar($cal->get_events())."\n";
 
-my $tmp = $cal->add_entry($entry);
-die "Couldn't add event: $@\n" unless defined $tmp;
+$cal->add_entry($entry);
+die "Couldn't add event: $@\n" unless defined $entry;
 
 print "After=".scalar($cal->get_events())."\n";
 
-#die $tmp->as_xml;
+#die $entry->as_xml;
 
-$tmp->content('Updated');
+$entry->content('Updated');
 
 #print "Update\n";
-$cal->update_entry($tmp) || die "Couldn't update ".$tmp->id.": $@\n";
+#$tmp = $cal->update_entry($tmp) || die "Couldn't update ".$tmp->id.": $@\n";
+$cal->update_entry($entry) || die "Couldn't update ".$entry->id.": $@\n";
 print "Updated=".scalar($cal->get_events())."\n";
 
 #print $tmp->as_xml;
 
 
 	
-   for ($cal->get_events()) {
-        print $_->title."\n";
-        print $_->id."\n";
-        my ($start, $finish) = $_->when();
-        print "${start}-${finish}\n";
-        #print $_->content->body;
-        print "\n*****\n\n";
+for ($cal->get_events()) {
+#        print $_->title."\n";
+#        print $_->id."\n";
+#        my ($start, $finish) = $_->when();
+#        print "${start}-${finish}\n";
+#        #print $_->content->body;
+#        print "\n*****\n\n";
 		$cal->delete_entry($_);
-        # print $_->as_xml;
-   }
+#        # print $_->as_xml;
+}
 
 print "Delete\n";
-$cal->delete_entry($tmp) || die "Couldn't delete ".$tmp->id.": $@\n";
+#$cal->delete_entry($entry) || die "Couldn't delete ".$entry->id.": $@\n";
 print "Delete=".scalar($cal->get_events())."\n";
 

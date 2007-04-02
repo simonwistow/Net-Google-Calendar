@@ -13,7 +13,7 @@ use URI::Escape;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.6";
+$VERSION  = "0.7";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -23,15 +23,40 @@ Net::Google::Calendar - programmatic access to Google's Calendar API
 
 =head1 SYNOPSIS
 
-    my $cal = Net::Google::Calendar->new( url => $url );
-    $cal->login($u, $p);
+    # this will only get you a read only feed
+    my $cal = Net::Google::Calendar->new( url => $private_url );
 
+or
+
+    # this will get you a read-write feed. 
+    my $cal = Net::Google::Calendar->new;
+    $cal->login($username, $password);
+
+or
+
+    # this will also get you a read-write feed
+    my $cal = Net::Google::Calendar->new;
+    $cal->auth($username, $auth_token);
+
+
+then
 
     for ($cal->get_events()) {
         print $_->title."\n";
         print $_->content->body."\n*****\n\n";
     }
 
+    my $c;
+    for ($cal->get_calendars) {
+        print $_->title."\n";
+        print $_->id."\n\n";
+        $c = $_ if ($_->title eq 'My Non Default Calendar');
+    }
+    $cal->set_calendar($c);
+    print $cal->id." has ".scalar($cal->get_events)." events\n";
+
+
+    # everything below here requires a read-write feed
     my $entry = Net::Google::Calendar::Entry->new();
     $entry->title($title);
     $entry->content("My content");
@@ -46,6 +71,22 @@ Net::Google::Calendar - programmatic access to Google's Calendar API
     $author->email('foo@bar.com');
     $entry->author($author);
 
+By default new or updated entries are modified in place with
+any new information provided by Google.
+
+   $cal->add_entry($entry);
+
+   $entry->content('Updated');
+   $cal->update_entry($entry);
+
+   $cal->delete_entry($entry);
+
+However if you don't want the entry updated in place pass
+C<no_event_modification> in to the C<new()> method.
+
+   	my $cal = Net::Google::Calendar->new( no_event_modification => 1 );
+    $cal->login($user, $pass);
+   
     my $tmp = $cal->add_entry($entry);
     die "Couldn't add event: $@\n" unless defined $tmp;
 
@@ -53,7 +94,7 @@ Net::Google::Calendar - programmatic access to Google's Calendar API
 
     $tmp->content('Updated');
 
-    $cal->update_entry($tmp) || die "Couldn't update ".$tmp->id.": $@\n";
+    $tmp = $cal->update_entry($tmp) || die "Couldn't update ".$tmp->id.": $@\n";
 
     $cal->delete_entry($tmp) || die "Couldn't delete ".$tmp->id.": $@\n";
 
@@ -61,7 +102,55 @@ Net::Google::Calendar - programmatic access to Google's Calendar API
 
 =head1 DESCRIPTION
 
-Interact with Google's new calendar.
+Interact with Google's new calendar using the GData API.
+
+
+=head1 AUTHENTICATION AND READ-WRITE CALENDARS
+
+There are effectively four ways to get events from a Google calendar.
+
+You can get any public events by querying
+
+    http://www.google.com/calendar/feeds/<email>/public/full
+
+Then there are the three ways to get private entries. The first of these 
+involves a magic cookie in the url like this:
+
+    http://www.google.com/calendar/feeds/<email>/private-<key>/full
+
+Google has information on how to find this url here
+
+    http://code.google.com/apis/calendar/developers_guide_protocol.html#find_feed_url
+
+To use either the private or public feeds do
+
+    my $cal = Net::Google::Calendar->new( url => $url);
+
+Both these feeds will be read only however. This means that you won't be able to
+add, update or delete entries.
+
+You can also get all the private entries in a read-write feed by either logging in 
+or using C<AuthSub>.
+
+Logging in is the easiest. Simply do
+
+     my $cal = Net::Google::Calendar->new;
+     $cal->login($username, $password);
+
+Where C<$username> and C<$password> are the same as if you were logging into the 
+Google Calendar site.
+
+Alternatively if you don't want to use username and password (if, for example you were 
+providing Calendar reading as a service on your website and didn't want to have to ask 
+your users for their Google login details) you can use C<AuthSub>.
+
+     http://code.google.com/apis/accounts/AuthForWebApps.html
+
+Once you have an AuthSub token (or you user has supplied you with one)
+then you can login using
+
+     my $cal = Net::Google::Calendar->new;
+     $cal->auth($username, $token);
 
 =head1 METHODS
 
@@ -69,7 +158,8 @@ Interact with Google's new calendar.
 
 =head2 new <opts>
 
-Create a new instance. opts is a hash which must contain your private Google url.
+Create a new instance. C<opts> is a hash which must contain your private Google url
+as the key C<url> unless you plan to log in or authenticate.
 
 See 
 
@@ -77,15 +167,18 @@ See
 
 for how to get that.
 
+If you pass the option C<no_event_modification> as a psotive value then
+add_entry and update_entry will not modify the entry in place.
+
 =cut
 
 sub new {
     my ($class, %opts) = @_;
     $opts{_ua} = LWP::UserAgent->new;    
-    ($opts{calendar_id}) = ($opts{url} =~ m!/feeds/([^/]+)/!);
-
-    return bless \%opts, $class;
-
+    $opts{no_event_modification} ||= 0;
+    my $self = bless \%opts, $class;
+	$self->_find_calendar_id if $opts{url};
+	return $self;
 }
 
 
@@ -146,6 +239,7 @@ sub login {
     $self->{_auth_type} = 0;
     $self->{user}       = $user;
     $self->{pass}       = $pass; 
+	$self->_generate_url();
     return 1;
 }
 
@@ -153,7 +247,10 @@ sub login {
 =head2 auth <username> <token>
 
 Use the AuthSub method for calendar access.
-See http://code.google.com/apis/accounts/AuthForWebApps.html.
+See http://code.google.com/apis/accounts/AuthForWebApps.html 
+for details.
+
+
 
 =cut
 
@@ -162,6 +259,20 @@ sub auth {
     $self->{_auth}      = $token;
     $self->{user}       = $username;
     $self->{_auth_type} = 1;
+	$self->_generate_url();
+	return 1;
+}
+
+sub _generate_url {
+	my $self= shift;
+	#$self->{url} =~ s!/private-[^/]+!/private!;
+    $self->{url} = "http://google.com/calendar/feeds/$self->{user}/private/full";
+	$self->_find_calendar_id;
+}
+
+sub _find_calendar_id {
+	my $self = shift;
+    ($self->{calendar_id}) = ($self->{url} =~ m!/feeds/([^/]+)/!);
 }
 
 =head2 get_events [ %opts ]
@@ -408,6 +519,12 @@ sub set_calendar {
 
 Create a new entry.
 
+Returns the new entry with extra data provided by Google but will
+also modify the entry in place unless the C<no_event_modification> 
+option is passed to C<new()>.
+
+Returns undef on failure.
+
 =cut
 
 sub add_entry {
@@ -415,7 +532,8 @@ sub add_entry {
 
     # TODO for neatness' sake we could make calendar_id = 'default' when calendar_id = user
     my $url =  "http://www.google.com/calendar/feeds/$self->{calendar_id}/private/full"; 
-    return $self->_do($entry, $url, 'POST');
+	push @_, ($url, 'POST');
+    goto $self->can('_do');
 
 }
 
@@ -424,12 +542,15 @@ sub add_entry {
 
 Delete a given entry.
 
+Returns undef on failure or the old entry on success.
+
 =cut
 
 sub delete_entry {
     my ($self, $entry) = @_;
     my $url = $entry->edit_url || return undef;
-    return $self->_do($entry, $url, 'DELETE');
+	push @_, ($url, 'DELETE');
+    goto $self->can('_do');
 
 }
 
@@ -437,13 +558,19 @@ sub delete_entry {
 
 Update a given entry.
 
+Returns the updated entry with extra data provided by Google but will
+also modify the entry in place unless the C<no_event_modification>
+option is passed to C<new()>.
+
+Returns undef on failure.
+
 =cut
 
 sub update_entry {
     my ($self, $entry) = @_;
     my $url = $entry->edit_url || return undef;
-    return $self->_do($entry, $url, 'PUT');
-
+	push @_, ($url, 'PUT');
+    goto $self->can('_do');
 }
 
 sub _do {
@@ -485,7 +612,9 @@ sub _do {
         }
         my $c = $r->content;
         if (defined $c && length($c)) {
-            return Net::Google::Calendar::Entry->new(Stream => \$c);
+            my $tmp = Net::Google::Calendar::Entry->new(Stream => \$c);
+			$_[1]   = $tmp unless $self->{no_event_modification};
+            return $tmp;
         } else {
             # in the case of DELETE should we return 1 instead?
             return $entry;

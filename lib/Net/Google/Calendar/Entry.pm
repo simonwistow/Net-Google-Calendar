@@ -243,17 +243,38 @@ Return the edit url of this event.
 
 =cut
 
+
 sub edit_url {
+	return $_[0]->_generic_url('edit');
+}
+
+
+=head2 self_url
+
+Return the self url of this event.
+
+=cut
+
+
+
+sub self_url {
+    return $_[0]->_generic_url('self');
+}
+
+sub _generic_url {
     my $self = shift;
-    my $edit;
+    my $name = shift;
+    my $uri;
     for ($self->link) {
-        next unless 'edit' eq $_->rel;
-        $edit = $_;
+        next unless $name eq $_->rel;
+        $uri = $_;
         last;
     }
-    return undef unless defined $edit;
-    return $edit->href;
+    return undef unless defined $uri;
+    return $uri->href;
 }
+
+
 
 
 =head2 recurrence [ Data::ICal::Entry::Event ]

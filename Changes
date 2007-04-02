@@ -1,7 +1,10 @@
+v0.7
+   Sort out problem with read-write feeds.
+   Default to inplace overwriting of added and updated events.
+
 v0.6
    Allow Authorization token login (advice from various people)
    Use the HOSTED_OR_GOOGLE app type by default (ditto)
-      
 
 v0.5 
    Make when() work properly again, not sure what happened there
