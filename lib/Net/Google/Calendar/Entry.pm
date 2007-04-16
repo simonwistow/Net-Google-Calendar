@@ -187,10 +187,12 @@ sub _my_getlist {
 
 
 
-=head2 when [<start> <end>]
+=head2 when [<start> <end> [allday]]
 
 Get or set the start and end time as supplied as DateTime objects. 
 End must be more than start.
+
+You may optionally pass a paramtere in designating if this is an all day event or not.
 
 Returns two DateTime objects depicting the start and end. 
 
@@ -201,17 +203,20 @@ sub when {
     my $self = shift;
 
     if (@_) {
-        my ($start, $end) = @_;
+        my ($start, $end, $allday) = @_;
+        $allday = 0 unless defined $allday;
         unless ($end>$start) {
             $@ = "End is not less than start";
             return undef;
         }
         $start->set_time_zone('UTC');
         $end->set_time_zone('UTC');
+        
+        my $format = $allday ? "%F" : "%FT%TZ";
 
         $self->set($self->{_gd_ns}, "gd:when",  '', { 
-            startTime => $start->strftime("%FT%TZ"),
-            endTime   => $end->strftime("%FT%TZ"),
+            startTime => $start->strftime($format),
+            endTime   => $end->strftime($format),
         });        
     }
     my $start = $self->_my_get($self->{_gd_ns}, 'when', 'startTime');
@@ -245,7 +250,7 @@ Return the edit url of this event.
 
 
 sub edit_url {
-	return $_[0]->_generic_url('edit');
+    return $_[0]->_generic_url('edit');
 }
 
 

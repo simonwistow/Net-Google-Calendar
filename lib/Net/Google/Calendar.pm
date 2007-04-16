@@ -13,7 +13,7 @@ use URI::Escape;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.7";
+$VERSION  = "0.8";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -37,6 +37,12 @@ or
     # this will also get you a read-write feed
     my $cal = Net::Google::Calendar->new;
     $cal->auth($username, $auth_token);
+
+or you can pass in a url to specify a particular calendar
+
+    my $cal = Net::Google::Calendar->new( url => $non_default_url );
+    $cal->login($username, $password);
+    # or $cal->auth($username, $auth_token) obviously
 
 
 then
@@ -84,7 +90,7 @@ any new information provided by Google.
 However if you don't want the entry updated in place pass
 C<no_event_modification> in to the C<new()> method.
 
-   	my $cal = Net::Google::Calendar->new( no_event_modification => 1 );
+    my $cal = Net::Google::Calendar->new( no_event_modification => 1 );
     $cal->login($user, $pass);
    
     my $tmp = $cal->add_entry($entry);
@@ -177,8 +183,8 @@ sub new {
     $opts{_ua} = LWP::UserAgent->new;    
     $opts{no_event_modification} ||= 0;
     my $self = bless \%opts, $class;
-	$self->_find_calendar_id if $opts{url};
-	return $self;
+    $self->_find_calendar_id if $opts{url};
+    return $self;
 }
 
 
@@ -239,7 +245,7 @@ sub login {
     $self->{_auth_type} = 0;
     $self->{user}       = $user;
     $self->{pass}       = $pass; 
-	$self->_generate_url();
+    $self->_generate_url();
     return 1;
 }
 
@@ -259,19 +265,19 @@ sub auth {
     $self->{_auth}      = $token;
     $self->{user}       = $username;
     $self->{_auth_type} = 1;
-	$self->_generate_url();
-	return 1;
+    $self->_generate_url();
+    return 1;
 }
 
 sub _generate_url {
-	my $self= shift;
-	#$self->{url} =~ s!/private-[^/]+!/private!;
-    $self->{url} = "http://google.com/calendar/feeds/$self->{user}/private/full";
-	$self->_find_calendar_id;
+    my $self= shift;
+    $self->{url} ||=  "http://google.com/calendar/feeds/$self->{user}/private/full";
+    $self->{url}   =~ s!/private-[^/]+!/private!;
+    $self->_find_calendar_id;
 }
 
 sub _find_calendar_id {
-	my $self = shift;
+    my $self = shift;
     ($self->{calendar_id}) = ($self->{url} =~ m!/feeds/([^/]+)/!);
 }
 
@@ -532,7 +538,7 @@ sub add_entry {
 
     # TODO for neatness' sake we could make calendar_id = 'default' when calendar_id = user
     my $url =  "http://www.google.com/calendar/feeds/$self->{calendar_id}/private/full"; 
-	push @_, ($url, 'POST');
+    push @_, ($url, 'POST');
     goto $self->can('_do');
 
 }
@@ -549,7 +555,7 @@ Returns undef on failure or the old entry on success.
 sub delete_entry {
     my ($self, $entry) = @_;
     my $url = $entry->edit_url || return undef;
-	push @_, ($url, 'DELETE');
+    push @_, ($url, 'DELETE');
     goto $self->can('_do');
 
 }
@@ -569,7 +575,7 @@ Returns undef on failure.
 sub update_entry {
     my ($self, $entry) = @_;
     my $url = $entry->edit_url || return undef;
-	push @_, ($url, 'PUT');
+    push @_, ($url, 'PUT');
     goto $self->can('_do');
 }
 
@@ -613,7 +619,7 @@ sub _do {
         my $c = $r->content;
         if (defined $c && length($c)) {
             my $tmp = Net::Google::Calendar::Entry->new(Stream => \$c);
-			$_[1]   = $tmp unless $self->{no_event_modification};
+            $_[1]   = $tmp unless $self->{no_event_modification};
             return $tmp;
         } else {
             # in the case of DELETE should we return 1 instead?
