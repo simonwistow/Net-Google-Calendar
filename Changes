@@ -1,3 +1,11 @@
+v0.9 Sat 15 Dec 2007 22:56:40 GMT
+   Fix location in Entry (Julian Bilcke)
+   Add ability to create, update and delete calendars
+   Add ability to get attendees (Scott Gifford)
+   Fix bug with getting objects instead of scalars (Mark Allen)
+   Use Net::Google::AuthSub
+   Allow webcontent in Entries
+
 v0.8 Mon 16 Apr 2007 08:08:20 BST
    Don't clobber the url passed in (Rich Williams)
    Allow setting of all-day events (Rich Williams)

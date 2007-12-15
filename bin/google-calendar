@@ -10,29 +10,91 @@
 use strict;
 use Data::Dumper;
 use Net::Google::Calendar;
+use Net::Google::Calendar::Calendar;
+use Net::Google::Calendar::WebContent;
 use Data::ICal::Entry::Event;
 use Date::ICal;
 
 my $url = shift || die "You must pass a feed url\n";
+
+
+#my $e = Net::Google::Calendar::Entry->new();
+#$e->title("Title");
+#$e->content("My content");
+#$e->when(DateTime->now, DateTime->now() + DateTime::Duration->new( hours => 6 ) );
+
+
+#my $pe = Net::Google::Calendar::Person->new();
+#$pe->email('simon@thegestalt.org');
+#$pe->name('Simon Wistow');
+
+#$e->who($pe);
+
+#my $pf = Net::Google::Calendar::Person->new();
+#$pf->email('rich@slag.org');
+#$pf->name('Richard Marr');
+#$e->who($pf, $pe);
+
+#print $e->as_xml;
+
+#exit 0;
+
+
+
+
+#my %wc      = ( url => 'http://thegestalt.org/simon/images/camouflage.png', width => '100', height => '80', type => 'image/png' );
+#my $content = Net::Google::Calendar::WebContent->new( title => 'testing', href => 'http://thegestalt.org', webContent => \%wc);
+#$content->webContent(%wc);
+#$e->add_link($content);
+#print $e->as_xml;
+
+
+
 
 #my $cal = Net::Google::Calendar->new( url => $url );
 my $cal = Net::Google::Calendar->new();
 
 my $u = shift;
 my $p = shift;
+my $token = shift;
 
 $cal->login($u, $p) || die "Couldn't log in: $@\n";
+#$cal->auth($u, $token);
 
-if (@ARGV && $ARGV[0] eq 'list') {
-	for ($cal->get_calendars) {
+my $new_cal = Net::Google::Calendar::Calendar->new();
+$new_cal->title("Testing New Calendar");
+$new_cal->summary("A new calendar for testing");
+#print "**** Before ****\n".$new_cal->as_xml;
+my $cal_tmp = $cal->add_calendar($new_cal);
+if (defined $cal_tmp) {
+	# print "**** After ****\n".$cal_tmp->as_xml;
+} else {
+	die "Couldn't add_calendar: $@\n";
+}
+
+#$cal_tmp->title("Updating New Calendar");
+#$cal_tmp = $cal->update_calendar($cal_tmp) || die "Couldn't update calendar\n";
+#$cal_tmp->title =~ m!Updating!  || die "Calendar not updated\n"; 
+
+#$cal->add_entry($e);
+#exit 0;
+
+
+if (1 || (@ARGV && $ARGV[0] eq 'list')) {
+	for ($cal->get_calendars(0)) {
 		print $_->title."\n";
 		print $_->id."\n\n";
+		if ($_->title =~ /New Calendar/) {
+			$cal->delete_calendar($_, 1) || print "FAIL: $@\n";
+		}
 	}
 	exit;
 }
 
+my @calendars = $cal->get_calendars;
 my ($c) = grep { $_->title =~ m!default!i } $cal->get_calendars;
-die "Couldn't get cal\n" unless defined $c;
+#die "Couldn't get cal\n" unless defined $c;
+$c = $calendars[0];
 $cal->set_calendar($c);
 
 if (!@ARGV) {

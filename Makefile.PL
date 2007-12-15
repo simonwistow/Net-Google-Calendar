@@ -7,6 +7,7 @@ WriteMakefile
           'PREREQ_PM' => {
                            'DateTime' => '0',
                            'LWP::UserAgent' => '0',
+                           'Net::Google::AuthSub' => '0',
                            'Test::More' => '0',
                            'URI' => '0',
                            'URI::Escape' => '0',

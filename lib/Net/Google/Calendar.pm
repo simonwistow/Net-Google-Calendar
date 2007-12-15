@@ -2,18 +2,22 @@ package Net::Google::Calendar;
 
 use strict;
 use LWP::UserAgent;
+use HTTP::Request;
+use HTTP::Headers;
 use HTTP::Request::Common;
 use XML::Atom::Feed;
 use XML::Atom::Entry;
 use Data::Dumper;
+use Net::Google::AuthSub;
 use Net::Google::Calendar::Entry;
 use Net::Google::Calendar::Person;
+use Net::Google::Calendar::Calendar;
 use URI;
 use URI::Escape;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.8";
+$VERSION  = "0.9";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -180,7 +184,8 @@ add_entry and update_entry will not modify the entry in place.
 
 sub new {
     my ($class, %opts) = @_;
-    $opts{_ua} = LWP::UserAgent->new;    
+    $opts{_ua}   = LWP::UserAgent->new;
+    $opts{_auth} = Net::Google::AuthSub->new( service => 'cl' );    
     $opts{no_event_modification} ||= 0;
     my $self = bless \%opts, $class;
     $self->_find_calendar_id if $opts{url};
@@ -222,29 +227,13 @@ See http://code.google.com/apis/accounts/AuthForInstalledApps.html#ClientLogin f
 =cut
 
 sub login {
-    my ($self, $user, $pass, %opts) = @_;
-    # setup auth request
-    my %params = ( Email       => $user, 
-                   Passwd      => $pass, 
-                   service     => 'cl', 
-                   source      => $APP_NAME,
-                   accountType => 'HOSTED_OR_GOOGLE' );
-    # allow overrides
-    $params{$_} = $opts{$_} for (keys %opts);
+    my $self  = shift;
+    my $user  = shift;
+    my $pass = shift;
+    my $r = $self->{_auth}->login($user, $pass);
+    die "Couldn't log in - ".$r->error unless $r->is_success;
 
-    my $r = $self->{_ua}->request(POST 'https://www.google.com/accounts/ClientLogin', [ %params ]);
-    unless ($r->is_success) { $@ = $r->status_line; return undef; }
-    my $c = $r->content;
-    my ($auth) = $c =~ m!Auth=(.+)(\s+|$)!; 
-    unless (defined $auth) {
-        $@ = "Couldn't extract auth token from '$c'";
-        return undef; 
-    }
-    # store auth token
-    $self->{_auth}      = $auth;
-    $self->{_auth_type} = 0;
-    $self->{user}       = $user;
-    $self->{pass}       = $pass; 
+    $self->{user} = $user;
     $self->_generate_url();
     return 1;
 }
@@ -257,14 +246,14 @@ See http://code.google.com/apis/accounts/AuthForWebApps.html
 for details.
 
 
-
 =cut
 
 sub auth {
-    my ($self, $username, $token) = @_;
-    $self->{_auth}      = $token;
-    $self->{user}       = $username;
-    $self->{_auth_type} = 1;
+    my $self  = shift;
+    my $user  = shift;
+    my $token = shift;
+    $self->{_auth}->auth($user, $token);
+    $self->{user} = $user;
     $self->_generate_url();
     return 1;
 }
@@ -274,6 +263,7 @@ sub _generate_url {
     $self->{url} ||=  "http://google.com/calendar/feeds/$self->{user}/private/full";
     $self->{url}   =~ s!/private-[^/]+!/private!;
     $self->_find_calendar_id;
+
 }
 
 sub _find_calendar_id {
@@ -460,65 +450,9 @@ sub get_events {
         $url->path("$path");
     }
 
-    $url->query_form(\%opts);
-
-    my %params = $self->_auth_params;
-    my $r   = $self->{_ua}->get("$url", %params);
-    die $r->status_line unless $r->is_success;
-    my $atom = $r->content;
-
-    my $feed = XML::Atom::Feed->new(\$atom);
-    return map {  bless $_, 'Net::Google::Calendar::Entry'; $_->_initialize(); $_ } $feed->entries;
+    $url->query_form(%opts);
+    $self->_get("$url", "Net::Google::Calendar::Entry");
 }
-
-
-=head2 get_calendars
-
-Get a list of user's Calendars as Net::Google::Calendar::Entry objects.
-
-=cut
-
-sub get_calendars {
-    my $self = shift;
-    my $url = URI->new("http://www.google.com/calendar/feeds/".$self->{user});
-
-    my %params = $self->_auth_params;
-    my $r   = $self->{_ua}->get("$url", %params);
-    die $r->status_line unless $r->is_success;
-    my $atom = $r->content;
-
-    my $feed = XML::Atom::Feed->new(\$atom);
-    # TODO maybe these should be Net::Google::Calendar::Entry::Calendar objects or something
-    return map {  bless $_, 'Net::Google::Calendar::Entry'; $_->_initialize(); $_ } $feed->entries;
-}
-
-sub _auth_params {
-    my $self = shift;
-    return () unless defined $self->{_auth};
-    return ( Authorization => $self->_auth_string );
-
-}
-my @AUTH_TYPES = ("GoogleLogin auth", "AuthSub token");
-
-sub _auth_string {
-    my $self   = shift;
-    return $AUTH_TYPES[$self->{_auth_type}]."=".$self->{_auth};
-}
-
-=head2 set_calendar <Net::Google::Calendar::Entry>
-
-Set the current calendar to use.
-
-=cut
-
-sub set_calendar {
-    my $self = shift;
-    my $cal  = shift;
-
-    ($self->{calendar_id}) = (uri_unescape($cal->id) =~ m!([^/]+)$!);
-    $self->{url} =  "http://www.google.com/calendar/feeds/$self->{calendar_id}/private/full";
-}
-
 
 
 =head2 add_entry <Net::Google::Calendar::Entry>
@@ -554,10 +488,10 @@ Returns undef on failure or the old entry on success.
 
 sub delete_entry {
     my ($self, $entry) = @_;
-    my $url = $entry->edit_url || return undef;
+    my $force = pop @_ || 0;
+    my $url = $entry->edit_url($force) || return undef;
     push @_, ($url, 'DELETE');
     goto $self->can('_do');
-
 }
 
 =head2 update_entry <Net::Google::Calendar::Entry>
@@ -579,6 +513,111 @@ sub update_entry {
     goto $self->can('_do');
 }
 
+=head2 get_calendars <owned>
+
+Get a list of all of a user's Calendars as C<Net::Google::Calendar::Calendar> objects.
+
+If C<owned> is true then only get the ones a user owns.
+ 
+=cut
+
+sub get_calendars {
+    my $self  = shift;
+    my $owned = shift || 0;
+    my $which = ($owned)? "owncalendars" : "allcalendars";
+    my $url   = "http://www.google.com/calendar/feeds/default/$which/full";
+    return $self->_get("$url", "Net::Google::Calendar::Calendar");
+}
+
+
+sub _get {
+    my ($self, $url, $class, %opts) = @_;
+    my %params = ($self->{_auth}->auth_params, %opts);
+    my $r   = $self->{_ua}->get("$url", %params);
+    die $r->status_line unless $r->is_success;
+    my $atom = $r->content;
+
+    my $feed = XML::Atom::Feed->new(\$atom);
+    return map {  bless $_, $class; $_->_initialize(); $_ } $feed->entries;
+}
+
+=head2 set_calendar <Net::Google::Calendar::Calendar>
+
+Set the current calendar to use.
+
+=cut
+
+sub set_calendar {
+    my $self = shift;
+    my $cal  = shift;
+
+    ($self->{calendar_id}) = (uri_unescape($cal->id) =~ m!([^/]+)$!);
+    $self->{url} =  "http://www.google.com/calendar/feeds/$self->{calendar_id}/private/full";
+}
+
+
+=head2 add_calendar  <Net::Google::Calendar::Calendar>
+
+Create a new calendar 
+
+Returns the new calendar with extra data provided by Google but will
+also modify the entry in place unless the C<no_event_modification> 
+option is passed to C<new()>.
+
+Returns undef on failure.
+
+=cut
+
+sub add_calendar {
+    my ($self, $entry) = @_;
+    my $url = "http://www.google.com/calendar/feeds/$self->{calendar_id}/owncalendars/full"; 
+    push @_, ($url, 'POST');
+    goto $self->can('_do');
+}
+
+=head2 update_calendar  <Net::Google::Calendar::Calendar>
+
+Update a calendar.
+
+Returns the updated calendar with extra data provided by Google but will
+also modify the entry in place unless the C<no_event_modification>
+option is passed to C<new()>.
+
+Returns undef on failure.
+
+=cut
+
+sub update_calendar {
+    my $self = shift;
+    $self->update_entry(@_);
+}
+
+
+=head2 delete_calendar <Net::Google::Calendar::Calendar> [force]
+
+Delete a given calendar.
+
+Returns undef on failure or the old entry on success.
+
+Note that, at the moment, only C<Calendar> objects returned 
+by C<get_calendars> with the C<owned> parameter set to C<true> 
+can be deleted (unlike editing - I don't know if this is a Google
+bug or not). 
+
+However, you can pass in an option true C<force> parameter to this
+method that will allow C<Calendar> objects returned by C<get_calendars> 
+where no positive C<owned> paramemter was passed to be deleted. It uses 
+an egregious hack though and might suddenly stop working if Google change 
+things or I suddenly decide to remove it.
+
+=cut
+
+
+sub delete_calendar {
+    my $self = shift;
+    $self->delete_entry(@_);
+}
+
 sub _do {
     my ($self, $entry, $url, $method) = @_;
 
@@ -595,7 +634,7 @@ sub _do {
 
     my $xml = $entry->as_xml;
     _utf8_off($xml);
-    my %params = $self->_auth_params;
+    my %params = $self->{_auth}->auth_params;
     $params{Content_Type}             = 'application/atom+xml; charset=UTF-8';
     $params{Content}                  = $xml;
     $params{'X-HTTP-Method-Override'} = $method unless "POST" eq $method;
@@ -603,6 +642,8 @@ sub _do {
 
     while (1) {
         my $rq = POST $url, %params;
+        #my $h  = HTTP::Headers->new(%params);
+        #my $rq = HTTP::Request->new($method => $url, $h);
         my $r = $self->{_ua}->request( $rq );
 
         if (302 == $r->code) {
@@ -613,7 +654,7 @@ sub _do {
         }
 
         if (!$r->is_success) {
-            $@ = $r->status_line." - ".$r->content;
+            $@ = $r->status_line." - ".$r->content." - $url";
             return undef;
         }
         my $c = $r->content;

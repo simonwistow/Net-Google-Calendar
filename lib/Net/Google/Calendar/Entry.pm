@@ -5,8 +5,8 @@ use Data::Dumper;
 use DateTime;
 use XML::Atom;
 use XML::Atom::Entry;
-use XML::Atom::Util qw( set_ns first nodelist iso2dt);
-use base qw(XML::Atom::Entry);
+use XML::Atom::Util qw( set_ns first nodelist childlist iso2dt);
+use base qw(XML::Atom::Entry Net::Google::Calendar::Base);
 
 
 
@@ -49,8 +49,7 @@ sub new {
     return $self;
 }
 
-sub _initialize                                                                                   
-{                                                                                                 
+sub _initialize {
     my $self = shift;                                                                               
                                                                                                   
     $self->category({ scheme => 'http://schemas.google.com/g/2005#kind', term => 'http://schemas.google.com/g/2005#event' } );
@@ -145,9 +144,22 @@ sub _gd_element{
         $self->set($self->{_gd_ns}, "gd:${elem}",  '', { value => "http://schemas.google.com/g/2005#event.${val}" });
         return $val;
     }
-    my $val = $self->_my_get($self->{_gd_ns}, $elem, 'value');
+    my $val = $self->_attribute_get($self->{_gd_ns}, $elem, 'value');
     $val =~ s!^http://schemas.google.com/g/2005#event\.!!;
     return $val;
+}
+
+sub _attribute_get {
+    my ($self, $ns, $what, $key) = @_;
+    my $elemt = $self->_my_get($self->{_gd_ns}, $what, $key);
+    
+     if ($elem->hasAttribute($key)) {
+            return $elem->getAttribute($key);
+        } else {
+            return $elem;
+        }
+    }
+
 }
 
 =head2 location [location]
@@ -161,30 +173,12 @@ sub location {
 
     if (@_) {
         my $val = shift;
-        $self->set($self->{_gd_ns}, 'gd:where', '', { valueString => $val});
+        $self->set($self->{_gd_ns}, 'where', '', { valueString => $val});
         return $val;
     }
     
-    return $self->_my_get($self->{_gd_ns}, 'where', 'valueString');
+    return $self->_attribute_get($self->{_gd_ns}, 'where', 'valueString');
 }
-
-# work round get in XML::Atom::Thing which stringifies stuff
-sub _my_get {
-    my $obj = shift;
-    my($ns, $name) = @_;
-    my @list = $obj->_my_getlist($ns, $name);
-    return $list[0];
-}
-
-sub _my_getlist {
-    my $obj = shift;
-    my($ns, $name) = @_;
-    my $ns_uri = ref($ns) eq 'XML::Atom::Namespace' ? $ns->{uri} : $ns;
-    my @node = nodelist($obj->elem, $ns_uri, $name);
-    return @node;
-}
-
-
 
 
 =head2 when [<start> <end> [allday]]
@@ -192,7 +186,7 @@ sub _my_getlist {
 Get or set the start and end time as supplied as DateTime objects. 
 End must be more than start.
 
-You may optionally pass a paramtere in designating if this is an all day event or not.
+You may optionally pass a paramter in designating if this is an all day event or not.
 
 Returns two DateTime objects depicting the start and end. 
 
@@ -219,28 +213,64 @@ sub when {
             endTime   => $end->strftime($format),
         });        
     }
-    my $start = $self->_my_get($self->{_gd_ns}, 'when', 'startTime');
-    my $end   = $self->_my_get($self->{_gd_ns}, 'when', 'endTime');
+    my $start = $self->_attribute_get($self->{_gd_ns}, 'when', 'startTime');
+    my $end   = $self->_attribute_get($self->{_gd_ns}, 'when', 'endTime');
     my @rets;
     if (defined $start) {
-        if ($start->hasAttribute('startTime')) {
-            push @rets, $start->getAttribute('startTime');
-        } else {
-            push @rets, $start;
-        }
+        push @rets, $start;
     } else {
-        die "No start date ".$self->as_xml;
+        return @rets;
+        #die "No start date ".$self->as_xml;
     }
     if (defined $end) {
-        if ($start->hasAttribute('endTime')) {
-            push @rets, $start->getAttribute('endTime');
-        } else {
-            push @rets, $end;
-        }
+        push @rets, $end;
     } 
     return map { iso2dt($_) } @rets;
 
 }
+
+
+
+=head2 who [Net::Google::Calendar::Person[s]]
+
+Get or set the list of event invitees.
+
+If no parameters are passed then it returns a list containing zero 
+or more Net::Google::Calendar::Person objects.
+
+If you pass in one or more Net::Google::Calendar::Person objects then 
+they get set as the invitees.
+
+=cut
+
+# TODO this needs a lot of work
+# for example attendeeType, attendeeStatus and entryLink
+# http://code.google.com/apis/gdata/elements.html#gdWho
+sub who {
+    my $self = shift;
+
+    my $ns_uri = $self->{_gd_ns};
+    my $name   = 'who';
+    if (@_) {
+        my @elem = $self->_my_getlist($ns_uri, $name);
+           $self->elem->removeChild($_) for @elem;
+        for my $person (@_) {
+            my $stuff = { rel => "http://schemas.google.com/g/2005#event.attendee" };
+            $stuff->{email}       = $person->email if $person->email;
+            $stuff->{valueString} = $person->name  if $person->name;
+            $self->add($ns_uri,"gd:${name}", '', $stuff);
+        }     
+    }
+    my @who = map {
+       my $person = Net::Google::Calendar::Person->new();
+       $person->email($_->getAttribute("email")) if defined $_->getAttribute("email");
+       $person->name($_->getAttribute("valueString")) if defined $_->getAttribute("valueString");
+       $person;
+    } $self->_my_getlist($ns_uri,$name);
+}
+
+
+
 
 =head2 edit_url 
 
@@ -324,10 +354,13 @@ sub recurrence {
     # we need Data::ICal for this but we don't wnat to require it
     eval {
         require Data::ICal;
-        Data::ICal->import;    
+        Data::ICal->import;
+        require Data::ICal::Entry::Event;
+        Data::ICal::Entry::Event->import;
+    
     };
     if ($@) {
-        $@ = "Couldn't load Data::ICal";
+        $@ = "Couldn't load Data::ICal or Data::ICal::Entry::Event: $@";
         return;
     }
 
@@ -347,13 +380,13 @@ sub recurrence {
     return undef unless defined $string;
     $string =~ s!\n+$!!g;
     $string = "BEGIN:VEVENT\n${string}\nEND:VEVENT";
-    my $vfile = Text::vFile::asData->parse_lines( split(/\n/, $string) );
+    print "Recurrence is $string\n";
+    my $vfile = Text::vFile::asData->new->parse_lines( split(/\n/, $string) );
     my $event = Data::ICal::Entry::Event->new();
-
+    #return $event;
 
     $event->parse_object($vfile->{objects}->[0]);
-    return $event->{entries}->[0];
-  
+    return $event->entries->[0];
 
 }
 
