@@ -1,3 +1,6 @@
+v0.91 Sun 16 Dec 2007 12:50:49 GMT
+   Fix bad release
+
 v0.9 Sat 15 Dec 2007 22:56:40 GMT
    Fix location in Entry (Julian Bilcke)
    Add ability to create, update and delete calendars

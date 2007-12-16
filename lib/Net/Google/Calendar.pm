@@ -17,7 +17,7 @@ use URI::Escape;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.9";
+$VERSION  = "0.91";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME

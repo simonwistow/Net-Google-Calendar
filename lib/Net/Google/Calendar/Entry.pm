@@ -151,15 +151,13 @@ sub _gd_element{
 
 sub _attribute_get {
     my ($self, $ns, $what, $key) = @_;
-    my $elemt = $self->_my_get($self->{_gd_ns}, $what, $key);
+    my $elem = $self->_my_get($self->{_gd_ns}, $what, $key);
     
-     if ($elem->hasAttribute($key)) {
-            return $elem->getAttribute($key);
-        } else {
-            return $elem;
-        }
+    if ($elem->hasAttribute($key)) {
+        return $elem->getAttribute($key);
+    } else {
+        return $elem;
     }
-
 }
 
 =head2 location [location]
