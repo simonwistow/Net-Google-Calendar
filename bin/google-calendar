@@ -18,10 +18,10 @@ use Date::ICal;
 my $url = shift || die "You must pass a feed url\n";
 
 
-#my $e = Net::Google::Calendar::Entry->new();
-#$e->title("Title");
-#$e->content("My content");
-#$e->when(DateTime->now, DateTime->now() + DateTime::Duration->new( hours => 6 ) );
+my $e = Net::Google::Calendar::Entry->new();
+$e->title("Title");
+$e->content("My content");
+$e->when(DateTime->now, DateTime->now() + DateTime::Duration->new( hours => 6 ) );
 
 
 #my $pe = Net::Google::Calendar::Person->new();
@@ -42,14 +42,35 @@ my $url = shift || die "You must pass a feed url\n";
 
 
 
-#my %wc      = ( url => 'http://thegestalt.org/simon/images/camouflage.png', width => '100', height => '80', type => 'image/png' );
-#my $content = Net::Google::Calendar::WebContent->new( title => 'testing', href => 'http://thegestalt.org', webContent => \%wc);
+#my %wc      = ( 
+#	url => 'http://thegestalt.org/simon/images/camouflage.png', 
+#	width => '100', 
+#	height => '80', 
+#	type => 'image/png' 
+#);
+#my $content = Net::Google::Calendar::WebContent->new( 
+#	title => 'testing', 
+#	href => 'http://thegestalt.org', 
+#	webContent => \%wc
+#);
 #$content->webContent(%wc);
 #$e->add_link($content);
 #print $e->as_xml;
 
-
-
+my $content = Net::Google::Calendar::WebContent->new(
+	title      => 'DateTime Gadget (a classic!)',
+    href       => 'http://www.google.com/favicon.ico',
+	webContent => {
+		url    => 'http://google.com/ig/modules/datetime.xml',
+		width  => 300,
+		height => 136,
+        type   => 'application/x-google-gadgets+xml',
+		prefs  => { Days => 1, Format => 0 },
+	}
+);
+#print $content->as_xml;
+$e->add_link($content);
+print $e->as_xml;
 
 #my $cal = Net::Google::Calendar->new( url => $url );
 my $cal = Net::Google::Calendar->new();
@@ -61,23 +82,24 @@ my $token = shift;
 $cal->login($u, $p) || die "Couldn't log in: $@\n";
 #$cal->auth($u, $token);
 
-my $new_cal = Net::Google::Calendar::Calendar->new();
-$new_cal->title("Testing New Calendar");
-$new_cal->summary("A new calendar for testing");
+#my $new_cal = Net::Google::Calendar::Calendar->new();
+#$new_cal->title("Testing New Calendar");
+#$new_cal->summary("A new calendar for testing");
 #print "**** Before ****\n".$new_cal->as_xml;
-my $cal_tmp = $cal->add_calendar($new_cal);
-if (defined $cal_tmp) {
-	# print "**** After ****\n".$cal_tmp->as_xml;
-} else {
-	die "Couldn't add_calendar: $@\n";
-}
+#my $cal_tmp = $cal->add_calendar($new_cal);
+#if (defined $cal_tmp) {
+#	# print "**** After ****\n".$cal_tmp->as_xml;
+#} else {
+#	die "Couldn't add_calendar: $@\n";
+#}
 
 #$cal_tmp->title("Updating New Calendar");
 #$cal_tmp = $cal->update_calendar($cal_tmp) || die "Couldn't update calendar\n";
 #$cal_tmp->title =~ m!Updating!  || die "Calendar not updated\n"; 
 
-#$cal->add_entry($e);
-#exit 0;
+
+$cal->add_entry($e) || die "Couldn't add entry $@";
+exit 0;
 
 
 if (1 || (@ARGV && $ARGV[0] eq 'list')) {

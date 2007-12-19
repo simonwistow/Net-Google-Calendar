@@ -17,7 +17,7 @@ use URI::Escape;
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.91";
+$VERSION  = "0.92";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -436,6 +436,7 @@ sub get_events {
 
     my $url = URI->new($self->{url});
 
+    # special handling for single entryID lookup
     if (exists $opts{entryID}) {
         if (scalar(keys %opts)>1) {
             $@ = "You can't specify entryID and anything else";
@@ -443,6 +444,7 @@ sub get_events {
         }
         my $path = $url->path;
         $url->path("$path/".$opts{entryID});
+        return $self->_get_entry("$url", "Net::Google::Calendar::Entry");
     }
 
     if (exists $opts{category} && 'ARRAY' eq ref($opts{category})) {
@@ -474,7 +476,6 @@ sub add_entry {
     my $url =  "http://www.google.com/calendar/feeds/$self->{calendar_id}/private/full"; 
     push @_, ($url, 'POST');
     goto $self->can('_do');
-
 }
 
 
@@ -539,6 +540,27 @@ sub _get {
 
     my $feed = XML::Atom::Feed->new(\$atom);
     return map {  bless $_, $class; $_->_initialize(); $_ } $feed->entries;
+}
+
+sub _get_entry {
+    my ($self, $url, $class) = @_;
+    my %params = ($self->{_auth}->auth_params);
+    my $r   = $self->{_ua}->get("$url", %params);
+  
+    if (!$r->is_success) {
+         if ($r->code == 404) {
+              $@ = "EntryID not found";
+         } else {
+              $@ = $r->status_line;
+         }
+         return;
+    }
+    my $atom = $r->content;
+
+    my $entry = XML::Atom::Entry->new(\$atom);
+	$entry = bless $entry, $class;
+	$entry->_initialize();
+	rteurn $entry;
 }
 
 =head2 set_calendar <Net::Google::Calendar::Calendar>
@@ -641,7 +663,7 @@ sub _do {
     
 
     while (1) {
-        my $rq = POST $url, %params;
+        my $rq = POST "$url", %params;
         #my $h  = HTTP::Headers->new(%params);
         #my $rq = HTTP::Request->new($method => $url, $h);
         my $r = $self->{_ua}->request( $rq );

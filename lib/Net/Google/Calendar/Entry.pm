@@ -141,7 +141,7 @@ sub _gd_element{
 
     if (@_) {
         my $val = lc(shift);
-        $self->set($self->{_gd_ns}, "gd:${elem}",  '', { value => "http://schemas.google.com/g/2005#event.${val}" });
+        $self->set($self->{_gd_ns}, "${elem}",  '', { value => "http://schemas.google.com/g/2005#event.${val}" });
         return $val;
     }
     my $val = $self->_attribute_get($self->{_gd_ns}, $elem, 'value');
@@ -206,7 +206,7 @@ sub when {
         
         my $format = $allday ? "%F" : "%FT%TZ";
 
-        $self->set($self->{_gd_ns}, "gd:when",  '', { 
+        $self->set($self->{_gd_ns}, "when",  '', { 
             startTime => $start->strftime($format),
             endTime   => $end->strftime($format),
         });        
@@ -256,7 +256,7 @@ sub who {
             my $stuff = { rel => "http://schemas.google.com/g/2005#event.attendee" };
             $stuff->{email}       = $person->email if $person->email;
             $stuff->{valueString} = $person->name  if $person->name;
-            $self->add($ns_uri,"gd:${name}", '', $stuff);
+            $self->add($ns_uri,"${name}", '', $stuff);
         }     
     }
     my @who = map {
@@ -370,7 +370,7 @@ sub recurrence {
         my $recur =  $event->as_string;
 
         $recur =~ s!(^BEGIN:VEVENT\n|END:VEVENT\n$)!!sg; 
-        $self->set($self->{_gd_ns}, 'gd:recurrence', $recur);
+        $self->set($self->{_gd_ns}, 'recurrence', $recur);
 
         return $event;
     }
@@ -387,7 +387,12 @@ sub recurrence {
     return $event->entries->[0];
 
 }
-
+sub add_link {
+    my ($self, $link) = @_;
+    # workaround bug in XML::Atom
+    $link = bless $link, 'XML::Atom::Link' if ref($link) && $link->isa('XML::Atom::Link');
+    $self->SUPER::add_link($link);
+}
 
 =head1 TODO
 

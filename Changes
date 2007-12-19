@@ -1,3 +1,8 @@
+v0.92 Wed 19 Dec 2007 21:30:26 GMT
+   Fix creation duplicate tags when editing an existing record (James Wright)
+   Fix fetching of a single entry using entryID (James Wright)
+   Allow Google Gadgets and prefs in WebContent
+
 v0.91 Sun 16 Dec 2007 12:50:49 GMT
    Fix bad release
 
