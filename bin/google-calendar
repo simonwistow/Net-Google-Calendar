@@ -65,7 +65,7 @@ my $content = Net::Google::Calendar::WebContent->new(
 		width  => 300,
 		height => 136,
         type   => 'application/x-google-gadgets+xml',
-		prefs  => { Days => 1, Format => 0 },
+		prefs  => { color => 'green' },
 	}
 );
 #print $content->as_xml;
@@ -88,7 +88,7 @@ $cal->login($u, $p) || die "Couldn't log in: $@\n";
 #print "**** Before ****\n".$new_cal->as_xml;
 #my $cal_tmp = $cal->add_calendar($new_cal);
 #if (defined $cal_tmp) {
-#	# print "**** After ****\n".$cal_tmp->as_xml;
+#	print "**** After ****\n".$cal_tmp->as_xml;
 #} else {
 #	die "Couldn't add_calendar: $@\n";
 #}
@@ -101,9 +101,8 @@ $cal->login($u, $p) || die "Couldn't log in: $@\n";
 $cal->add_entry($e) || die "Couldn't add entry $@";
 exit 0;
 
-
 if (1 || (@ARGV && $ARGV[0] eq 'list')) {
-	for ($cal->get_calendars(0)) {
+	for ($cal->get_calendars()) {
 		print $_->title."\n";
 		print $_->id."\n\n";
 		if ($_->title =~ /New Calendar/) {

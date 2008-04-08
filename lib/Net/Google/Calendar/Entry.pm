@@ -7,7 +7,8 @@ use XML::Atom;
 use XML::Atom::Entry;
 use XML::Atom::Util qw( set_ns first nodelist childlist iso2dt);
 use base qw(XML::Atom::Entry Net::Google::Calendar::Base);
-
+use Net::Google::Calendar::Person;
+use Net::Google::Calendar::Comments;
 
 
 =head1 NAME
@@ -43,18 +44,16 @@ Create a new Event object
 
 sub new {
     my ($class, %opts) = @_;
-
     my $self  = $class->SUPER::new( Version => '1.0', %opts );
     $self->_initialize();
     return $self;
 }
 
 sub _initialize {
-    my $self = shift;                                                                               
-                                                                                                  
+    my ($self)  = @_;
+	$self->SUPER::_initialize();
     $self->category({ scheme => 'http://schemas.google.com/g/2005#kind', term => 'http://schemas.google.com/g/2005#event' } );
-                                                                                                  
-    $self->{_gd_ns} = XML::Atom::Namespace->new(gd => 'http://schemas.google.com/g/2005');          
+    $self->set_attr('xmlns:gd', 'http://schemas.google.com/g/2005');
 }
 
 =head2 id [id]
@@ -241,30 +240,62 @@ they get set as the invitees.
 
 =cut
 
-# TODO this needs a lot of work
-# for example attendeeType, attendeeStatus and entryLink
 # http://code.google.com/apis/gdata/elements.html#gdWho
 sub who {
     my $self = shift;
 
-    my $ns_uri = $self->{_gd_ns};
-    my $name   = 'who';
-    if (@_) {
-        my @elem = $self->_my_getlist($ns_uri, $name);
-           $self->elem->removeChild($_) for @elem;
-        for my $person (@_) {
-            my $stuff = { rel => "http://schemas.google.com/g/2005#event.attendee" };
-            $stuff->{email}       = $person->email if $person->email;
-            $stuff->{valueString} = $person->name  if $person->name;
-            $self->add($ns_uri,"${name}", '', $stuff);
-        }     
+    my $ns_uri = ""; # $self->{_gd_ns};
+    my $name   = 'gd:who';
+    foreach my $who (@_) {
+        $self->add($ns_uri,"${name}", $who, {});
     }
     my @who = map {
        my $person = Net::Google::Calendar::Person->new();
-       $person->email($_->getAttribute("email")) if defined $_->getAttribute("email");
-       $person->name($_->getAttribute("valueString")) if defined $_->getAttribute("valueString");
+       for my $attr ($_->attributes) {
+                my $name = $attr->nodeName;
+                my $val  = $attr->value || "";
+                #print "$name = $val\n";
+                eval { $person->_do('@'.$name, $val) };
+                next if $@;
+       }
+       foreach my $child ($_->childNodes) {
+            my $name = $child->nodeName;
+            my $val  = $child->getAttribute('value');
+            #print "$name = $val\n";
+            $person->_do($name, $val);
+       }
+       #print $person->as_xml;
+       #print "\n\n";
        $person;
     } $self->_my_getlist($ns_uri,$name);
+}
+
+=head2 comments [comment[s]]
+
+Get or set Comments object.
+
+=cut
+
+sub comments {
+    my $self = shift;
+
+    my $ns_uri = $self->{_gd_ns};
+    my $name   = 'gd:comments';
+    if (@_) {
+        $self->add($ns_uri,"${name}", shift, {});
+    }
+
+    my $tmp = $self->_my_get($ns_uri, $name);
+    my $comment = Net::Google::Calendar::Comments->new();
+    for my $attr ($tmp->attributes) {
+           my $name = $attr->nodeName;
+        my $val  = $attr->value || "";
+        eval { $comment->_do('@'.$name, $val) };
+        next if $@;
+    }
+    my $feed = Net::Google::Calendar::FeedLink->new(Elem => $tmp->firstChild);
+    $comment->feed_link($feed) if $feed;
+    return $comment;
 }
 
 
@@ -294,18 +325,6 @@ sub self_url {
     return $_[0]->_generic_url('self');
 }
 
-sub _generic_url {
-    my $self = shift;
-    my $name = shift;
-    my $uri;
-    for ($self->link) {
-        next unless $name eq $_->rel;
-        $uri = $_;
-        last;
-    }
-    return undef unless defined $uri;
-    return $uri->href;
-}
 
 
 
@@ -387,6 +406,19 @@ sub recurrence {
     return $event->entries->[0];
 
 }
+
+=head2 add_link <link>
+
+Adds the link $link, which must be an XML::Atom::Link object, to the entry as a new <link> tag. For example:
+
+    my $link = XML::Atom::Link->new;
+    $link->type('text/html');
+    $link->rel('alternate');
+    $link->href('http://www.example.com/2003/12/post.html');
+    $entry->add_link($link);
+
+=cut
+
 sub add_link {
     my ($self, $link) = @_;
     # workaround bug in XML::Atom

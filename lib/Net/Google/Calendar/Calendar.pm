@@ -13,6 +13,8 @@ convenience methods that could be added but for now you'll
 have to access them using the underlying C<XML::Atom::Entry>
 object.
 
+=head2 new 
+
 =cut
 
 sub new {
@@ -43,6 +45,13 @@ sub summary {
     }
     return $self->get($self->ns, 'summary');
 }
+
+
+=head2 edit_url
+
+Get the edit url
+
+=cut
 
 sub edit_url {
     my $self  = shift;

@@ -1,3 +1,8 @@
+v0.93 
+   Much better attendee support
+   Fix typo (James Wright)
+   Added start of comment support
+
 v0.92 Wed 19 Dec 2007 21:30:26 GMT
    Fix creation duplicate tags when editing an existing record (James Wright)
    Fix fetching of a single entry using entryID (James Wright)

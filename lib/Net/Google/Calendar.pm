@@ -2,6 +2,7 @@ package Net::Google::Calendar;
 
 use strict;
 use LWP::UserAgent;
+use HTTP::Cookies;
 use HTTP::Request;
 use HTTP::Headers;
 use HTTP::Request::Common;
@@ -14,10 +15,11 @@ use Net::Google::Calendar::Person;
 use Net::Google::Calendar::Calendar;
 use URI;
 use URI::Escape;
+use Carp qw(confess);
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.92";
+$VERSION  = "0.93";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -186,6 +188,7 @@ sub new {
     my ($class, %opts) = @_;
     $opts{_ua}   = LWP::UserAgent->new;
     $opts{_auth} = Net::Google::AuthSub->new( service => 'cl' );    
+    $opts{_cookie_jar} = HTTP::Cookies->new;
     $opts{no_event_modification} ||= 0;
     my $self = bless \%opts, $class;
     $self->_find_calendar_id if $opts{url};
@@ -229,9 +232,15 @@ See http://code.google.com/apis/accounts/AuthForInstalledApps.html#ClientLogin f
 sub login {
     my $self  = shift;
     my $user  = shift;
-    my $pass = shift;
-    my $r = $self->{_auth}->login($user, $pass);
-    die "Couldn't log in - ".$r->error unless $r->is_success;
+    my $pass  = shift;
+    my $r     = $self->{_auth}->login($user, $pass);
+    my $error;
+    if (!defined $r) {
+        $error = $@; 
+    } elsif (!$r->is_success) {
+        $error = $r->error;
+    } 
+    die "Couldn't log in - $error" if defined $error;
 
     $self->{user} = $user;
     $self->_generate_url();
@@ -489,7 +498,7 @@ Returns undef on failure or the old entry on success.
 
 sub delete_entry {
     my ($self, $entry) = @_;
-    my $force = pop @_ || 0;
+    my $force = (scalar(@_)>2)? pop @_ : 0;
     my $url = $entry->edit_url($force) || return undef;
     push @_, ($url, 'DELETE');
     goto $self->can('_do');
@@ -533,15 +542,48 @@ sub get_calendars {
 
 sub _get {
     my ($self, $url, $class, %opts) = @_;
-    my %params = ($self->{_auth}->auth_params, %opts);
-    my $r   = $self->{_ua}->get("$url", %params);
-    die $r->status_line unless $r->is_success;
-    my $atom = $r->content;
-
-    my $feed = XML::Atom::Feed->new(\$atom);
+    my $feed = $self->get_feed(URI->new("$url"), %opts);
     return map {  bless $_, $class; $_->_initialize(); $_ } $feed->entries;
+}    
+
+=head2 get_feed [feed] [opt[s]]
+
+If C<feed> is a C<URI> object then feed is fetch remotely. 
+Otherwise it is assumed to be XML data and is parsed.
+
+Returns an C<XML::Atom::Feed> object.
+
+=cut
+
+sub get_feed {
+    my ($self, $feed, %opts) = @_;
+    if (ref($feed)){
+        return $feed if $feed->isa('XML::Atom::Feed');
+        if ($feed->isa('URI')) {
+            my %params = ($self->{_auth}->auth_params, %opts);
+            my $r   = $self->{_ua}->get("$feed", %params);
+            die $r->status_line unless $r->is_success;
+            $feed = $r->content;
+        }
+    }
+    return XML::Atom::Feed->new(\$feed);
 }
 
+=head2 update_feed <feed>
+
+Take an C<XML::Atom::Feed> object with a C<http://schemas.google.com/g/2005#post> link and post it.
+
+=cut
+
+sub update_feed {
+	my ($self, $feed) = @_;
+ 	#my $uri = Net::Google::Calendar::Base::_generic_url($feed, 'http://schemas.google.com/g/2005#post') || die("Couldn't get url");
+ 	my $uri = Net::Google::Calendar::Base::_generic_url($feed, 'edit') || die("Couldn't get url");
+    push @_, ($uri, 'POST');
+    goto $self->can('_do');
+}
+
+# TODO collapse this with _get somehow
 sub _get_entry {
     my ($self, $url, $class) = @_;
     my %params = ($self->{_auth}->auth_params);
@@ -558,9 +600,9 @@ sub _get_entry {
     my $atom = $r->content;
 
     my $entry = XML::Atom::Entry->new(\$atom);
-	$entry = bless $entry, $class;
-	$entry->_initialize();
-	rteurn $entry;
+    $entry = bless $entry, $class;
+    $entry->_initialize();
+    return $entry;
 }
 
 =head2 set_calendar <Net::Google::Calendar::Calendar>
@@ -626,7 +668,7 @@ by C<get_calendars> with the C<owned> parameter set to C<true>
 can be deleted (unlike editing - I don't know if this is a Google
 bug or not). 
 
-However, you can pass in an option true C<force> parameter to this
+However, you can pass in an optional true C<force> parameter to this
 method that will allow C<Calendar> objects returned by C<get_calendars> 
 where no positive C<owned> paramemter was passed to be deleted. It uses 
 an egregious hack though and might suddenly stop working if Google change 
@@ -647,6 +689,14 @@ sub _do {
         $@ = "You must log in to do a $method\n";
         return undef;
     }
+    my $class = ref($entry);
+    my $xml = eval { $entry->as_xml };
+    confess($@) if $@;
+    _utf8_off($xml);
+    my %params = $self->{_auth}->auth_params;
+    $params{Content_Type}             = 'application/atom+xml; charset=UTF-8';
+    $params{Content}                  = $xml;
+    $params{'X-HTTP-Method-Override'} = $method unless "POST" eq $method;
 
     if (defined $self->{_session_id} && !$self->{_force_no_session_id}) {
         my $tmp = URI->new($url);
@@ -654,26 +704,22 @@ sub _do {
         $url = "$tmp";
     }
 
-    my $xml = $entry->as_xml;
-    _utf8_off($xml);
-    my %params = $self->{_auth}->auth_params;
-    $params{Content_Type}             = 'application/atom+xml; charset=UTF-8';
-    $params{Content}                  = $xml;
-    $params{'X-HTTP-Method-Override'} = $method unless "POST" eq $method;
     
 
     while (1) {
         my $rq = POST "$url", %params;
+        $self->{_cookie_jar}->add_cookie_header($rq);
         #my $h  = HTTP::Headers->new(%params);
         #my $rq = HTTP::Request->new($method => $url, $h);
         my $r = $self->{_ua}->request( $rq );
-
+        $self->{_cookie_jar}->extract_cookies($r);
         if (302 == $r->code) {
             $url = $r->header('location');
             my %args = URI->new($url)->query_form;
             $self->{_session_id} = $args{gsessionid};
             next;
-        }
+        } 
+        print $rq->as_string unless $params{'X-HTTP-Method-Override'} ;
 
         if (!$r->is_success) {
             $@ = $r->status_line." - ".$r->content." - $url";
@@ -681,7 +727,7 @@ sub _do {
         }
         my $c = $r->content;
         if (defined $c && length($c)) {
-            my $tmp = Net::Google::Calendar::Entry->new(Stream => \$c);
+            my $tmp = $class->new(Stream => \$c);
             $_[1]   = $tmp unless $self->{no_event_modification};
             return $tmp;
         } else {
