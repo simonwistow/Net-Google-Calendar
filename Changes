@@ -1,4 +1,7 @@
-v0.93 
+v0.94 Wed 09 Apr 2008 21:53:47 BST
+   Fix distribution
+
+v0.93 Tue 08 Apr 2008 18:36:00 GMT 
    Much better attendee support
    Fix typo (James Wright)
    Added start of comment support
