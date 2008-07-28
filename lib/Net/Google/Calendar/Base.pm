@@ -1,5 +1,6 @@
 package Net::Google::Calendar::Base;
 
+use strict;
 use XML::Atom::Thing;
 use XML::Atom::Util qw( set_ns first nodelist childlist iso2dt);
 
@@ -11,7 +12,7 @@ Net::Google::Calendar::Base - utility functions for Net::Google::Calendar object
 
 
 sub _initialize {
-    my $class   = ref($self)? ref($self) : $self;
+    my $self    = shift;
     my $ns      = XML::Atom::Namespace->new(gd => 'http://schemas.google.com/g/2005');
     $self->{_gd_ns} = $ns;
 }

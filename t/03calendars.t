@@ -37,6 +37,8 @@ isnt($updated, undef, "Updated was supplied");
 ok(@calendars = $cal->get_calendars(), "Got calendars again");
 is(scalar(@calendars), 2, "We've got 2 calendars");
 
+sleep(1);
+
 # Update
 $new_cal->summary("Updated test calendar");
 ok($cal->update_calendar($new_cal), "Updated calendar");

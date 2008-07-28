@@ -11,8 +11,8 @@ my $cal = eval { GCalTest::get_calendar('login') };
 if ($@) {
     plan skip_all => "because $@";
 } else {
-    #plan tests => 6;
-    plan skip_all => "Can't for the life of me get this to work";
+    plan tests => 6;
+    #plan skip_all => "Can't for the life of me get this to work";
 }
 
 use_ok("Net::Google::Calendar::FeedLink");
@@ -45,22 +45,16 @@ my $fl   = $saved->comments->feed_link;
 my $uri  = $fl->href;
 my $feed = $cal->get_feed($uri);
 
-
 my $comment = Net::Google::Calendar::Entry->new;
 
 my $atom = XML::Atom::Namespace->new(atom => 'http://www.w3.org/2005/Atom');
 
-print $feed->id."\n";
-my $url = Net::Google::Calendar::Base::_generic_url($feed, 'edit');
-print "URL=$url\n";
-exit 0;
-
-#$feed = XML::Atom::Feed->new;
-#my $link = XML::Atom::Link->new;
-#$link->type('application/xml');
-#$link->rel('http://schemas.google.com/g/2005#post');
-#$link->href("$url");
-#$feed->add_link($link);
+$feed = XML::Atom::Feed->new;
+my $link = XML::Atom::Link->new;
+$link->type('application/xml');
+$link->rel('http://schemas.google.com/g/2005#post');
+$link->href("$uri");
+$feed->add_link($link);
 
 
 my %ns = (
@@ -97,5 +91,5 @@ print $return->as_xml;
 # create a new feed 
 };
 print "Error: $@\n" if $@;
-#ok($cal->delete_entry($saved), "Deleted entry");
+ok($cal->delete_entry($saved), "Deleted entry");
 

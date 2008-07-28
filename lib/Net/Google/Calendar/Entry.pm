@@ -54,6 +54,11 @@ sub _initialize {
 	$self->SUPER::_initialize();
     $self->category({ scheme => 'http://schemas.google.com/g/2005#kind', term => 'http://schemas.google.com/g/2005#event' } );
     $self->set_attr('xmlns:gd', 'http://schemas.google.com/g/2005');
+     unless ( $self->{_gd_ns} ) {
+        my $ns = XML::Atom::Namespace->new(gd => 'http://schemas.google.com/g/2005');
+        $self->{_gd_ns} = $ns;
+    }
+
 }
 
 =head2 id [id]
@@ -134,13 +139,37 @@ sub status {
     return $self->_gd_element('eventStatus', @_);    
 }
 
+
+=head2 extended_property [property]
+
+Get or set an extended property
+
+=cut
+
+sub extended_property {
+	my $self = shift;
+	return $self->_multi_gd_element('extendedProperty', @_);
+}
+
+sub _multi_gd_element {
+    my $self = shift;
+    $self->_gd_elem_generic(1, @_);
+}
+
 sub _gd_element{
     my $self = shift;
-    my $elem = shift;
+    $self->_gd_elem_generic(0, @_);
+}
+
+sub _gd_elem_generic{
+    my $self  = shift;
+    my $multi = shift;
+    my $elem  = shift;
 
     if (@_) {
         my $val = lc(shift);
-        $self->set($self->{_gd_ns}, "${elem}",  '', { value => "http://schemas.google.com/g/2005#event.${val}" });
+        my $op  = ($multi)? 'add' : 'set';
+        $self->$op($self->{_gd_ns}, "${elem}",  '', { value => "http://schemas.google.com/g/2005#event.${val}" });
         return $val;
     }
     my $val = $self->_attribute_get($self->{_gd_ns}, $elem, 'value');
@@ -196,7 +225,7 @@ sub when {
     if (@_) {
         my ($start, $end, $allday) = @_;
         $allday = 0 unless defined $allday;
-        unless ($end>$start) {
+        unless ($end>=$start) {
             $@ = "End is not less than start";
             return undef;
         }

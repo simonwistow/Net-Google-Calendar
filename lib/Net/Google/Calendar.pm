@@ -19,7 +19,7 @@ use Carp qw(confess);
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.94";
+$VERSION  = "0.95";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -187,7 +187,8 @@ add_entry and update_entry will not modify the entry in place.
 sub new {
     my ($class, %opts) = @_;
     $opts{_ua}   = LWP::UserAgent->new;
-    $opts{_auth} = Net::Google::AuthSub->new( service => 'cl' );    
+    $opts{_ua}->env_proxy;
+    $opts{_auth} = Net::Google::AuthSub->new( service => 'cl' );
     $opts{_cookie_jar} = HTTP::Cookies->new;
     $opts{no_event_modification} ||= 0;
     my $self = bless \%opts, $class;
