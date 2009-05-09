@@ -19,7 +19,7 @@ use Carp qw(confess);
 
 use vars qw($VERSION $APP_NAME);
 
-$VERSION  = "0.95";
+$VERSION  = "0.97";
 $APP_NAME = __PACKAGE__."-${VERSION}"; 
 
 =head1 NAME
@@ -274,6 +274,17 @@ sub _generate_url {
     $self->{url}   =~ s!/private-[^/]+!/private!;
     $self->_find_calendar_id;
 
+}
+
+=head2 auth_object [Net::Google::AuthSub]
+
+Get or set the current C<Net::Google::AuthSub> object.
+
+=cut
+sub auth_object {
+    my $self = shift;
+    $self->{_auth} = shift if @_;
+    return $self->{_auth};
 }
 
 sub _find_calendar_id {
@@ -720,7 +731,7 @@ sub _do {
             $self->{_session_id} = $args{gsessionid};
             next;
         } 
-        print $rq->as_string unless $params{'X-HTTP-Method-Override'} ;
+        #print $rq->as_string unless $params{'X-HTTP-Method-Override'} ;
 
         if (!$r->is_success) {
             $@ = $r->status_line." - ".$r->content." - $url";

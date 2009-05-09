@@ -1,3 +1,10 @@
+v0.97
+   Deal with update to Net::Google::AuthSub
+   Provide access to AuthSub object
+    Add quick_add support for Entry
+
+v0.96
+   Much better when() behaviour (J. Shirley)
 
 v0.95 Tue 29 Jul 2008 00:17:45 BST
    Fix typo in base (various)

@@ -1,19 +1,39 @@
---- #YAML:1.0
-name:                Net-Google-Calendar
-version:             0.95
-abstract:            ~
-license:             ~
-author:              ~
-generated_by:        ExtUtils::MakeMaker version 6.44
-distribution_type:   module
-requires:     
-    DateTime:                      0
-    LWP::UserAgent:                0
-    Net::Google::AuthSub:          0
-    Test::More:                    0
-    URI:                           0
-    URI::Escape:                   0
-    XML::Atom:                     0.23
+---
+name: Net-Google-Calendar
+version: 0.97
+author:
+  - 'Simon Wistow <simon@thegestalt.org>'
+abstract: programmatic access to Google's Calendar API
+license: perl
+resources:
+  license: http://dev.perl.org/licenses/
+requires:
+  DateTime: 0
+  LWP::UserAgent: 0
+  Net::Google::AuthSub: 0
+  Test::More: 0
+  URI: 0
+  URI::Escape: 0
+  XML::Atom: 0.23
+provides:
+  Net::Google::Calendar:
+    file: lib/Net/Google/Calendar.pm
+    version: 0.97
+  Net::Google::Calendar::Base:
+    file: lib/Net/Google/Calendar/Base.pm
+  Net::Google::Calendar::Calendar:
+    file: lib/Net/Google/Calendar/Calendar.pm
+  Net::Google::Calendar::Comments:
+    file: lib/Net/Google/Calendar/Comments.pm
+  Net::Google::Calendar::Entry:
+    file: lib/Net/Google/Calendar/Entry.pm
+  Net::Google::Calendar::FeedLink:
+    file: lib/Net/Google/Calendar/FeedLink.pm
+  Net::Google::Calendar::Person:
+    file: lib/Net/Google/Calendar/Person.pm
+  Net::Google::Calendar::WebContent:
+    file: lib/Net/Google/Calendar/WebContent.pm
+generated_by: Module::Build version 0.2808
 meta-spec:
-    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
-    version: 1.3
+  url: http://module-build.sourceforge.net/META-spec-v1.2.html
+  version: 1.2

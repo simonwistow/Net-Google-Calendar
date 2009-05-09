@@ -54,9 +54,12 @@ sub _initialize {
 	$self->SUPER::_initialize();
     $self->category({ scheme => 'http://schemas.google.com/g/2005#kind', term => 'http://schemas.google.com/g/2005#event' } );
     $self->set_attr('xmlns:gd', 'http://schemas.google.com/g/2005');
-     unless ( $self->{_gd_ns} ) {
-        my $ns = XML::Atom::Namespace->new(gd => 'http://schemas.google.com/g/2005');
-        $self->{_gd_ns} = $ns;
+    $self->set_attr('xmlns:gCal', 'http://schemas.google.com/gCal/2005');
+    unless ( $self->{_gd_ns} ) {
+        $self->{_gd_ns} = XML::Atom::Namespace->new(gd => 'http://schemas.google.com/g/2005');
+    }
+    unless ( $self->{_gcal_ns} ) {
+        $self->{_gcal_ns} = XML::Atom::Namespace->new(gCal => 'http://schemas.google.com/gCal/2005');
     }
 
 }
@@ -199,12 +202,31 @@ sub location {
 
     if (@_) {
         my $val = shift;
-        $self->set($self->{_gd_ns}, 'where', '', { valueString => $val});
+        $self->set($self->{_gd_ns}, 'where' => '', { valueString => $val});
         return $val;
     }
     
     return $self->_attribute_get($self->{_gd_ns}, 'where', 'valueString');
 }
+
+
+=head2 quick_add [bool]
+
+Get or set whether this is a a quick add entry or not.
+
+=cut 
+sub quick_add {
+    my $self = shift;
+
+    if (@_) {
+        my $val = ($_[0])? 'true' : 'false';
+        $self->set( $self->{_gcal_ns}, quickadd => '', { value => $val } );        
+        return $_[0];
+    }
+    my $val = $self->_attribute_get($self->{_gcal_ns}, 'quickadd', 'valueString');
+    return ($val eq 'true');
+}
+
 
 
 =head2 when [<start> <end> [allday]]
